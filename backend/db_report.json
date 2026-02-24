@@ -1,0 +1,98 @@
+{
+  "users": [
+    {
+      "_id": "699d810ce9c0cbdd841356dd",
+      "email": "test_script@test.com"
+    },
+    {
+      "_id": "699d813368b2d3877ddd0010",
+      "email": "user@example.com"
+    },
+    {
+      "_id": "699d813f68b2d3877ddd0013",
+      "email": "test3@test.com"
+    },
+    {
+      "_id": "699d82f8b85ae33b33269f11",
+      "email": "sameer@gmail.com"
+    }
+  ],
+  "sessions": [
+    {
+      "_id": "699d8baa5352c9ac8ef4b6e3",
+      "userId": "699d813368b2d3877ddd0010"
+    },
+    {
+      "_id": "699d8ca656bf0cd4a9c474ef",
+      "userId": "699d813368b2d3877ddd0010"
+    },
+    {
+      "_id": "699d8e7f2108ab012bffb94a",
+      "userId": "699d813368b2d3877ddd0010"
+    }
+  ],
+  "questions": [
+    {
+      "_id": "699d8eee895b13b3868524b1",
+      "sessionId": "699d8e7f2108ab012bffb94a"
+    },
+    {
+      "_id": "699d8eee895b13b3868524b3",
+      "sessionId": "699d8e7f2108ab012bffb94a"
+    },
+    {
+      "_id": "699d9024588f1921cb71546e",
+      "sessionId": "699d8e7f2108ab012bffb94a"
+    },
+    {
+      "_id": "699d9024588f1921cb715470",
+      "sessionId": "699d8e7f2108ab012bffb94a"
+    },
+    {
+      "_id": "699d9077588f1921cb71547b",
+      "sessionId": "699d8e7f2108ab012bffb94a"
+    },
+    {
+      "_id": "699d912f588f1921cb71548a",
+      "sessionId": "699d8e7f2108ab012bffb94a"
+    }
+  ],
+  "answers": [
+    {
+      "_id": "699d9048588f1921cb715473",
+      "questionId": "699d9024588f1921cb715470"
+    },
+    {
+      "_id": "699d90e7588f1921cb71547e",
+      "questionId": "699d9077588f1921cb71547b"
+    },
+    {
+      "_id": "699d90f5588f1921cb715482",
+      "questionId": "699d9077588f1921cb71547b"
+    },
+    {
+      "_id": "699d9153588f1921cb71548d",
+      "questionId": "699d912f588f1921cb71548a"
+    }
+  ],
+  "evaluations": [
+    {
+      "answerId": "699d9048588f1921cb715473",
+      "scoreTech": 2,
+      "scoreRelevance": 1,
+      "scoreDepth": 1
+    },
+    {
+      "answerId": "699d90f5588f1921cb715482",
+      "scoreTech": 8,
+      "scoreRelevance": 7,
+      "scoreDepth": 6
+    },
+    {
+      "answerId": "699d9153588f1921cb71548d",
+      "scoreTech": 2,
+      "scoreRelevance": 1,
+      "scoreDepth": 1
+    }
+  ]
+}
