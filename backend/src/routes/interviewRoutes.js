@@ -22,24 +22,38 @@ const upload = multer({ dest: 'uploads/' });
 // 1. Initialize Session
 router.post('/start', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
-        const { jobRole, jdText } = req.body;
-        if (!req.file || !jobRole || !jdText) {
+        const { jobRole, jdText, yoe, mode } = req.body;
+        // For concepts and DSA mode, resume/jd are optional
+        const isInterviewMode = !mode || mode === 'interview';
+
+        if (isInterviewMode && (!req.file || !jobRole || !jdText)) {
             return res.status(400).json({ error: 'Missing resume, jobRole, or jdText' });
         }
 
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const resumeText = await parseResumePdf(fileBuffer);
-        fs.unlinkSync(req.file.path); // clean up
+        let resumeText = '';
+        let cleanedJD = '';
+        let skillsMatch = {};
 
-        const cleanedJD = processJobDescription(jdText);
-        const skillsMatch = await computeSkillMatch(resumeText, cleanedJD);
+        if (req.file) {
+            const fileBuffer = fs.readFileSync(req.file.path);
+            resumeText = await parseResumePdf(fileBuffer);
+            fs.unlinkSync(req.file.path);
+        }
+        if (jdText) {
+            cleanedJD = processJobDescription(jdText);
+            if (resumeText) {
+                skillsMatch = await computeSkillMatch(resumeText, cleanedJD);
+            }
+        }
 
         const session = await Session.create({
-            userId: req.user.userId, // This comes from JWT middleware
-            jobRole,
+            userId: req.user.userId,
+            jobRole: jobRole || 'General',
             jdText: cleanedJD,
             resumeText,
-            skillsMatch
+            skillsMatch,
+            yoe: parseInt(yoe) || 0,
+            mode: mode || 'interview',
         });
 
         res.json({ sessionId: session._id, skillsMatch });

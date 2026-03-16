@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Mic, Square, Loader2, MessageSquare, CheckCircle, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export default function InterviewRoom() {
@@ -16,6 +15,8 @@ export default function InterviewRoom() {
     const [audioBlob, setAudioBlob] = useState(null);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
+    const [recordingSeconds, setRecordingSeconds] = useState(0);
+    const timerRef = useRef(null);
 
     const [evaluation, setEvaluation] = useState(null);
 
@@ -51,13 +52,15 @@ export default function InterviewRoom() {
             };
 
             mediaRecorderRef.current.onstop = () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                setAudioBlob(audioBlob);
+                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                setAudioBlob(blob);
                 stream.getTracks().forEach(track => track.stop());
             };
 
             mediaRecorderRef.current.start();
             setIsRecording(true);
+            setRecordingSeconds(0);
+            timerRef.current = setInterval(() => setRecordingSeconds(s => s + 1), 1000);
         } catch (err) {
             console.error('Mic access denied:', err);
             alert('Please allow microphone access to answer the question.');
@@ -68,6 +71,7 @@ export default function InterviewRoom() {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
+            clearInterval(timerRef.current);
         }
     };
 
@@ -78,7 +82,6 @@ export default function InterviewRoom() {
 
         try {
             const formData = new FormData();
-            // Whisper usually expects typical extensions like .webm or .mp3 or .wav
             formData.append('audio', new File([audioBlob], 'answer.webm', { type: 'audio/webm' }));
 
             const res = await api.post(`/interview/${sessionId}/answer/${question.questionId || question.id}`, formData, {
@@ -94,11 +97,13 @@ export default function InterviewRoom() {
         }
     };
 
+    const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+
     if (loading) {
         return (
-            <div className="min-h-[60vh] flex flex-col items-center justify-center">
-                <Loader2 size={48} className="text-teal-500 animate-spin mb-6" />
-                <h2 className="text-xl font-medium text-slate-300 animate-pulse">{statusText}</h2>
+            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+                <div className="w-8 h-8 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" />
+                <p className="text-white/30 text-sm text-center max-w-xs animate-pulse">{statusText}</p>
             </div>
         );
     }
@@ -106,142 +111,212 @@ export default function InterviewRoom() {
     if (evaluation) {
         const { evaluation: ev, transcript, audit } = evaluation;
         const avgScore = ((ev.scoreTech + ev.scoreRelevance + ev.scoreDepth + ev.scoreStructure) / 4).toFixed(1);
+        const scoreGrade = avgScore >= 8 ? 'Excellent' : avgScore >= 6 ? 'Good' : avgScore >= 4 ? 'Fair' : 'Needs Work';
 
         return (
-            <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-[#1e293b]/50 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                            <CheckCircle className="text-teal-400" /> Answer Evaluation
-                        </h2>
-                        <div className="bg-slate-900/80 px-4 py-2 rounded-xl border border-slate-700">
-                            <span className="text-sm text-slate-400">Average Score: </span>
-                            <span className="text-xl font-bold text-teal-400">{avgScore}/10</span>
+            <div className="max-w-3xl mx-auto" style={{ fontFamily: "'Inter', sans-serif" }}>
+                {/* Header */}
+                <div className="mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/10 rounded-full text-xs text-white/40 mb-4 bg-white/5">
+                        <svg className="w-3 h-3 text-white/40" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Answer Evaluated
+                    </div>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <h2 className="text-2xl font-bold text-white tracking-tight">Evaluation Results</h2>
+                            <p className="text-white/30 text-sm mt-1">Here's how your answer was assessed by the AI.</p>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-3xl font-bold text-white">{avgScore}<span className="text-white/30 text-lg">/10</span></div>
+                            <div className="text-xs text-white/30 mt-0.5">{scoreGrade}</div>
                         </div>
                     </div>
+                </div>
 
-                    <div className="mb-6 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
-                        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Transcript</h3>
-                        <p className="text-slate-200 italic">"{transcript}"</p>
-                    </div>
-
-                    <div className="mb-6 space-y-4">
-                        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">AI Feedback</h3>
-                        <div className="prose prose-invert max-w-none text-slate-300">
-                            <ReactMarkdown>{ev.generalFeedback}</ReactMarkdown>
+                {/* Judge warning */}
+                {!audit?.isValid && (
+                    <div className="mb-5 p-4 rounded-xl bg-amber-500/8 border border-amber-500/15 flex items-start gap-3">
+                        <svg className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                            <p className="text-amber-400 text-sm font-medium">Evaluation Quality Warning</p>
+                            <p className="text-amber-400/60 text-xs mt-0.5">{audit?.auditReasoning || 'The AI evaluation may not be optimal for this response.'}</p>
                         </div>
                     </div>
+                )}
 
-                    {!audit?.isValid && (
-                        <div className="mb-6 bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-start gap-3 text-rose-300">
-                            <AlertTriangle className="shrink-0 mt-0.5" size={18} />
-                            <div>
-                                <strong className="block text-sm">Judge Note: Suboptimal Evaluation</strong>
-                                <span className="text-sm">{audit?.auditReasoning || "The evaluation AI might have hallucinated or graded unfairly."}</span>
+                {/* Score cards */}
+                <div className="grid grid-cols-4 gap-3 mb-6">
+                    {[
+                        { label: 'Technical', score: ev.scoreTech },
+                        { label: 'Relevance', score: ev.scoreRelevance },
+                        { label: 'Depth', score: ev.scoreDepth },
+                        { label: 'Structure', score: ev.scoreStructure },
+                    ].map(({ label, score }) => (
+                        <div key={label} className="bg-white/[0.03] border border-white/8 rounded-xl p-4 text-center">
+                            <div className="text-2xl font-bold text-white mb-1">{score}</div>
+                            <div className="text-xs text-white/30 uppercase tracking-wider">{label}</div>
+                            <div className="w-full bg-white/5 rounded-full h-1 mt-3 overflow-hidden">
+                                <div className="h-1 bg-white/30 rounded-full transition-all duration-700" style={{ width: `${(score / 10) * 100}%` }} />
                             </div>
                         </div>
-                    )}
+                    ))}
+                </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                        <ScoreCard title="Technical" score={ev.scoreTech} />
-                        <ScoreCard title="Relevance" score={ev.scoreRelevance} />
-                        <ScoreCard title="Depth" score={ev.scoreDepth} />
-                        <ScoreCard title="Structure" score={ev.scoreStructure} />
-                    </div>
+                {/* Transcript */}
+                <div className="bg-white/[0.02] border border-white/8 rounded-xl p-5 mb-5">
+                    <p className="text-xs text-white/30 uppercase tracking-widest mb-3">Your Transcribed Answer</p>
+                    <p className="text-white/60 text-sm leading-relaxed italic">"{transcript}"</p>
+                </div>
 
-                    <div className="flex justify-end gap-4 border-t border-slate-800 pt-6">
-                        <button onClick={() => navigate('/dashboard')} className="px-6 py-3 rounded-xl font-medium text-slate-300 hover:bg-slate-800 transition-colors">
-                            Finish & Dashboard
-                        </button>
-                        <button onClick={fetchNextQuestion} className="bg-teal-500 hover:bg-teal-400 text-white px-6 py-3 rounded-xl font-medium shadow-lg shadow-teal-500/25 transition-all">
-                            Next Question
-                        </button>
+                {/* AI Feedback */}
+                <div className="bg-white/[0.02] border border-white/8 rounded-xl p-5 mb-8">
+                    <p className="text-xs text-white/30 uppercase tracking-widest mb-4">AI Feedback</p>
+                    <div className="prose prose-sm max-w-none text-white/60 prose-p:text-white/60 prose-headings:text-white/80 prose-strong:text-white/80 prose-li:text-white/60">
+                        <ReactMarkdown>{ev.generalFeedback}</ReactMarkdown>
                     </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="flex items-center gap-2 px-5 py-3 text-sm text-white/40 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-all duration-150"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" />
+                        </svg>
+                        View Dashboard
+                    </button>
+                    <button
+                        onClick={fetchNextQuestion}
+                        className="flex items-center gap-2 bg-white text-black text-sm font-semibold px-6 py-3 rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all duration-150"
+                    >
+                        Next Question
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="max-w-4xl mx-auto animate-in fade-in zoom-in-95 duration-500 mt-4">
-            <div className="bg-gradient-to-b from-slate-800 to-[#1e293b] border border-slate-700 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
-                {/* Glow Effects */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+        <div className="max-w-3xl mx-auto mt-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+            {/* Question card */}
+            <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-8 md:p-12 mb-6 relative overflow-hidden">
+                {/* Subtle grid */}
+                <div
+                    className="absolute inset-0 pointer-events-none opacity-30"
+                    style={{
+                        backgroundImage: `linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                                          linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)`,
+                        backgroundSize: '30px 30px',
+                    }}
+                />
 
                 <div className="relative z-10 flex flex-col items-center text-center">
-                    <div className="inline-flex items-center gap-2 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-700 text-teal-400 text-sm font-medium mb-8">
-                        <MessageSquare size={16} /> Question Generator
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/10 rounded-full text-xs text-white/40 mb-8 bg-white/5">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                        </svg>
+                        Interview Question
                     </div>
 
-                    <h2 className="text-2xl md:text-4xl font-semibold text-white leading-relaxed mb-4 max-w-3xl">
+                    <blockquote className="text-xl md:text-2xl font-medium text-white leading-relaxed max-w-2xl mb-6">
                         "{question?.question}"
-                    </h2>
+                    </blockquote>
 
-                    <p className="text-slate-400 mb-12 max-w-2xl">Take a moment to gather your thoughts. When ready, start recording your answer. Speak clearly and comprehensively.</p>
-
-                    <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-                        {isRecording ? (
-                            <div className="flex flex-col items-center gap-4 w-full">
-                                <div className="w-24 h-24 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.3)]">
-                                    <div className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center">
-                                        <Mic className="text-white" size={24} />
-                                    </div>
-                                </div>
-                                <span className="text-rose-400 font-medium">Recording Answer...</span>
-                                <button
-                                    onClick={stopRecording}
-                                    className="w-full bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors border border-slate-700"
-                                >
-                                    <Square size={18} className="fill-white" /> Stop Recording
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={startRecording}
-                                className="w-24 h-24 rounded-full bg-teal-500 hover:bg-teal-400 border-4 border-teal-500/30 flex items-center justify-center shadow-xl shadow-teal-500/20 transition-all hover:scale-105 group"
-                            >
-                                <Mic className="text-white group-hover:scale-110 transition-transform" size={32} />
-                            </button>
-                        )}
-
-                        {!isRecording && audioBlob && (
-                            <div className="w-full mt-4 flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
-                                <audio src={URL.createObjectURL(audioBlob)} controls className="w-full h-12 opacity-80" />
-                                <button
-                                    onClick={submitAnswer}
-                                    className="w-full bg-teal-500 hover:bg-teal-400 text-white py-3.5 rounded-xl font-medium shadow-lg shadow-teal-500/25 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <CheckCircle size={18} /> Submit Answer
-                                </button>
-                                <button
-                                    onClick={() => setAudioBlob(null)}
-                                    className="w-full text-sm text-slate-400 hover:text-white transition-colors py-2"
-                                >
-                                    Discard & Retake
-                                </button>
-                            </div>
-                        )}
-
-                        {!isRecording && !audioBlob && (
-                            <span className="text-slate-500 font-medium mt-2">Click to Answer</span>
-                        )}
-                    </div>
+                    <p className="text-white/25 text-sm">
+                        Take a moment to gather your thoughts, then record your response.
+                    </p>
                 </div>
             </div>
-        </div>
-    );
-}
 
-function ScoreCard({ title, score }) {
-    // Color code based on score
-    const colorClass = score >= 8 ? 'text-teal-400 border-teal-400/20 bg-teal-400/5' :
-        score >= 5 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' :
-            'text-rose-400 border-rose-400/20 bg-rose-400/5';
-
-    return (
-        <div className={`p-4 rounded-2xl border ${colorClass} text-center flex flex-col justify-center items-center h-28`}>
-            <span className="text-3xl font-bold mb-1">{score}</span>
-            <span className="text-xs uppercase tracking-wider opacity-80 font-semibold">{title}</span>
+            {/* Recording panel */}
+            <div className="bg-white/[0.02] border border-white/8 rounded-2xl p-6">
+                <div className="flex flex-col items-center gap-5">
+                    {isRecording ? (
+                        // Recording state
+                        <div className="flex flex-col items-center gap-4 w-full">
+                            <div className="relative">
+                                <div className="w-20 h-20 rounded-full bg-red-500/10 border-2 border-red-500/60 flex items-center justify-center animate-pulse">
+                                    <div className="w-10 h-10 rounded-full bg-red-500/80 flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                {/* Ripple rings */}
+                                <div className="absolute inset-0 rounded-full border border-red-500/20 animate-ping" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                <span className="text-white/60 text-sm font-mono">{formatTime(recordingSeconds)}</span>
+                                <span className="text-white/30 text-sm">Recording...</span>
+                            </div>
+                            <button
+                                onClick={stopRecording}
+                                className="flex items-center gap-2 px-6 py-3 bg-white/8 border border-white/15 hover:bg-white/12 rounded-xl text-white text-sm font-medium transition-all duration-150"
+                            >
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                                </svg>
+                                Stop Recording
+                            </button>
+                        </div>
+                    ) : audioBlob ? (
+                        // Audio ready state
+                        <div className="w-full flex flex-col gap-3">
+                            <div className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-xl">
+                                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-4 h-4 text-white/60" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                        <path d="M7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z"/>
+                                    </svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white/70 text-sm font-medium">Answer recorded</p>
+                                    <p className="text-white/30 text-xs">{formatTime(recordingSeconds)} duration</p>
+                                </div>
+                                <button
+                                    onClick={() => { setAudioBlob(null); setRecordingSeconds(0); }}
+                                    className="text-white/25 hover:text-white/60 transition-colors text-xs"
+                                >
+                                    Retake
+                                </button>
+                            </div>
+                            <audio src={URL.createObjectURL(audioBlob)} controls className="w-full h-10 opacity-60" />
+                            <button
+                                onClick={submitAnswer}
+                                className="w-full flex items-center justify-center gap-2 bg-white text-black text-sm font-semibold py-3.5 rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all duration-150"
+                            >
+                                Submit Answer
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </button>
+                        </div>
+                    ) : (
+                        // Idle state
+                        <div className="flex flex-col items-center gap-3">
+                            <button
+                                onClick={startRecording}
+                                className="w-20 h-20 rounded-full bg-white/8 border-2 border-white/15 hover:bg-white/12 hover:border-white/30 flex items-center justify-center transition-all duration-200 hover:scale-105 group"
+                            >
+                                <svg className="w-8 h-8 text-white/60 group-hover:text-white transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z"/>
+                                </svg>
+                            </button>
+                            <p className="text-white/25 text-sm">Click to start recording</p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
