@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import api from '../services/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+// Problem count limits and time limits by difficulty
+const PROBLEM_LIMITS = { Easy: 4, Medium: 3, 'Medium-Hard': 3, Hard: 3 };
+// Countdown timer (minutes → seconds)
+const TIME_LIMITS_SECONDS = { Easy: 20 * 60, Medium: 35 * 60, 'Medium-Hard': 40 * 60, Hard: 50 * 60 };
 
 const TIER_BADGE = {
     'Easy': 'text-green-400 bg-green-400/10 border-green-400/20',
@@ -20,6 +25,9 @@ const DEFAULT_CODE = {
     Java: 'class Solution {\n    public int solution() {\n        // Write your solution here\n        return 0;\n    }\n}',
     'C++': '#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    int solution() {\n        // Write your solution here\n        return 0;\n    }\n};',
 };
+
+const fmtTime = (s) => s < 0 ? '00:00' : `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -40,12 +48,39 @@ export default function DSARoom() {
     const [evaluating, setEvaluating] = useState(false);
     const [evaluation, setEvaluation] = useState(null);
 
-    const [rightTab, setRightTab] = useState('editor'); // 'editor' | 'results'
+    const [rightTab, setRightTab] = useState('editor');
     const [showHints, setShowHints] = useState(false);
     const [hintIndex, setHintIndex] = useState(0);
 
+    // ── Problem counter & session stats ──────────────────────────────────────
+    const [problemIndex, setProblemIndex] = useState(0); // 0-based current problem index
+    const [passedCount, setPassedCount] = useState(0);
+    const [sessionComplete, setSessionComplete] = useState(false);
+    // ref to track max problems (set when first problem arrives)
+    const maxProblemsRef = useRef(3);
+
+    // ── Countdown timer ───────────────────────────────────────────────────────
+    const [timeLeft, setTimeLeft] = useState(null);
+    const [timeLimitSecs, setTimeLimitSecs] = useState(0);
+    const problemStartRef = useRef(null);
+    const countdownRef = useRef(null);
+
+    const startTimer = (limitSecs) => {
+        clearInterval(countdownRef.current);
+        setTimeLeft(limitSecs);
+        setTimeLimitSecs(limitSecs);
+        problemStartRef.current = Date.now();
+        countdownRef.current = setInterval(() => {
+            setTimeLeft(t => {
+                if (t <= 1) { clearInterval(countdownRef.current); return 0; }
+                return t - 1;
+            });
+        }, 1000);
+    };
+
     useEffect(() => {
         fetchProblem();
+        return () => clearInterval(countdownRef.current);
         // eslint-disable-next-line
     }, []);
 
@@ -55,7 +90,8 @@ export default function DSARoom() {
         setRightTab('editor');
         setShowHints(false);
         setHintIndex(0);
-        setStatusText(`Generating ${problem ? 'next' : 'first'} problem for ${company}...`);
+        clearInterval(countdownRef.current);
+        setStatusText(`Generating problem ${problemIndex + 1} for ${company}...`);
         try {
             const res = await api.post('/dsa/problem', {
                 company: company || 'TCS',
@@ -63,13 +99,20 @@ export default function DSARoom() {
                 topic: topic || '',
                 previousProblems
             });
-            setProblem(res.data);
-            // Set starter code from API if provided, else use defaults
-            const starter = res.data.starterCode
-                ? fixIndent(res.data.starterCode)
-                : DEFAULT_CODE[language];
+            const newProblem = res.data;
+            setProblem(newProblem);
+            const starter = newProblem.starterCode ? fixIndent(newProblem.starterCode) : DEFAULT_CODE[language];
             setCode(starter);
-            setPreviousProblems(prev => [...prev, { title: res.data.title, topic: res.data.topic }]);
+            setPreviousProblems(prev => [...prev, { title: newProblem.title, topic: newProblem.topic }]);
+
+            // Set max problems based on difficulty (first problem)
+            const diff = newProblem.difficulty || 'Medium';
+            const limit = PROBLEM_LIMITS[diff] || 3;
+            maxProblemsRef.current = limit;
+
+            // Start the countdown timer for this problem
+            const tLimit = TIME_LIMITS_SECONDS[diff] || (35 * 60);
+            startTimer(tLimit);
         } catch (err) {
             console.error(err);
             setStatusText('Failed to load problem. Please try again.');
@@ -90,14 +133,32 @@ export default function DSARoom() {
         if (!code.trim() || !problem) return;
         setEvaluating(true);
         setRightTab('editor');
+        clearInterval(countdownRef.current);
+        const timeUsed = timeLimitSecs - (timeLeft || 0);
         try {
-            const res = await api.post('/dsa/evaluate', { problem, code, language });
+            const res = await api.post('/dsa/evaluate', {
+                problem, code, language,
+                timeUsedSeconds: timeUsed,
+                timeLimitSeconds: timeLimitSecs,
+                sessionId: sessionId || null,
+            });
             setEvaluation(res.data);
             setRightTab('results');
+            if (res.data.passed) setPassedCount(p => p + 1);
         } catch (err) {
             console.error(err);
         } finally {
             setEvaluating(false);
+        }
+    };
+
+    const handleNextProblem = () => {
+        const nextIdx = problemIndex + 1;
+        if (nextIdx >= maxProblemsRef.current) {
+            setSessionComplete(true);
+        } else {
+            setProblemIndex(nextIdx);
+            fetchProblem();
         }
     };
 
@@ -109,13 +170,37 @@ export default function DSARoom() {
         </div>
     );
 
+    // ── Session complete ───────────────────────────────────────────────────────
+    if (sessionComplete) {
+        const total = maxProblemsRef.current;
+        const rate = total > 0 ? Math.round((passedCount / total) * 100) : 0;
+        return (
+            <div className="max-w-md mx-auto mt-20 text-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+                <div className="text-5xl mb-5">{rate >= 80 ? '🏆' : rate >= 60 ? '🎉' : rate >= 40 ? '👍' : '📚'}</div>
+                <h1 className="text-2xl font-bold text-white mb-2">Session Complete!</h1>
+                <p className="text-white/30 text-sm mb-8">{company} · {problem?.difficulty}</p>
+                <div className="grid grid-cols-3 gap-3 mb-8">
+                    <div className="bg-white/[0.03] border border-white/8 rounded-xl p-4"><div className="text-2xl font-bold text-green-400">{passedCount}</div><div className="text-xs text-white/30 mt-1">Accepted</div></div>
+                    <div className="bg-white/[0.03] border border-white/8 rounded-xl p-4"><div className={`text-2xl font-bold ${rate >= 70 ? 'text-green-400' : rate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{rate}%</div><div className="text-xs text-white/30 mt-1">Pass Rate</div></div>
+                    <div className="bg-white/[0.03] border border-white/8 rounded-xl p-4"><div className="text-2xl font-bold text-red-400">{total - passedCount}</div><div className="text-xs text-white/30 mt-1">Failed</div></div>
+                </div>
+                <div className="flex gap-3 justify-center">
+                    <button onClick={() => navigate('/dashboard')} className="px-5 py-2.5 text-sm border border-white/10 text-white/50 hover:text-white hover:border-white/25 rounded-xl transition-all">View Dashboard</button>
+                    <button onClick={() => navigate('/setup')} className="bg-white text-black text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-white/90 transition-all">New Session →</button>
+                </div>
+            </div>
+        );
+    }
+
     // ── Main layout ────────────────────────────────────────────────────────────
+    const timerPct = timeLimitSecs > 0 ? (timeLeft / timeLimitSecs) * 100 : 100;
+    const timerColor = timeLeft <= 120 ? 'text-red-400' : timeLeft <= 300 ? 'text-yellow-400' : 'text-white/60';
     return (
         <div className="flex flex-col h-[calc(100vh-80px)]" style={{ fontFamily: "'Inter', sans-serif" }}>
             {/* ── Top Bar ─────────────────────────────────────────────────────── */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                    <span className="text-white font-semibold text-sm truncate max-w-[260px]">{problem?.title}</span>
+                    <span className="text-white font-semibold text-sm truncate max-w-[220px]">{problem?.title}</span>
                     {problem?.difficulty && (
                         <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${TIER_BADGE[problem.difficulty] || TIER_BADGE.Medium}`}>
                             {problem.difficulty}
@@ -124,11 +209,20 @@ export default function DSARoom() {
                     {company && (
                         <span className="text-xs px-2.5 py-1 rounded-full border border-white/10 text-white/40 bg-white/5">{company}</span>
                     )}
-                    {problem?.topic && (
-                        <span className="text-xs px-2.5 py-1 rounded-full border border-white/8 text-white/30">{problem.topic}</span>
-                    )}
+                    {/* Problem counter */}
+                    <span className="text-xs text-white/25">{problemIndex + 1}/{maxProblemsRef.current}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    {/* Countdown timer */}
+                    {timeLeft !== null && (
+                        <div className="flex flex-col items-end gap-1">
+                            <span className={`font-mono text-sm font-bold tabular-nums ${timerColor}`}>{fmtTime(timeLeft)}</span>
+                            <div className="w-24 bg-white/6 rounded-full h-0.5 overflow-hidden">
+                                <div className={`h-0.5 rounded-full transition-all duration-1000 linear ${timerPct <= 20 ? 'bg-red-400' : timerPct <= 40 ? 'bg-yellow-400' : 'bg-white/40'}`}
+                                    style={{ width: `${timerPct}%` }} />
+                            </div>
+                        </div>
+                    )}
                     {/* Language switcher */}
                     <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/8 rounded-xl">
                         {['Python', 'JavaScript', 'Java', 'C++'].map(lang => (
@@ -137,10 +231,6 @@ export default function DSARoom() {
                             >{lang}</button>
                         ))}
                     </div>
-                    <button onClick={fetchProblem} className="flex items-center gap-1.5 px-3 py-2 text-xs text-white/40 hover:text-white border border-white/8 hover:border-white/20 rounded-xl transition-all">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-                        Next
-                    </button>
                     <button onClick={() => navigate('/setup')} className="px-3 py-2 text-xs text-white/30 hover:text-white border border-white/8 hover:border-white/20 rounded-xl transition-all">Exit</button>
                 </div>
             </div>
@@ -347,15 +437,21 @@ export default function DSARoom() {
 
                     {/* Run Code Bar */}
                     <div className="border-t border-white/5 p-3 flex items-center justify-between flex-shrink-0 bg-[#0a0a0a]">
-                        <div className="text-xs text-white/20">
-                            {evaluation && (evaluation.passed ? '✅ All tests passed' : `⚠️ ${evaluation.passedCount}/${evaluation.totalCount} passed`)}
+                        <div className="flex items-center gap-3">
+                            {evaluation && <span className="text-xs text-white/20">{evaluation.passed ? '✅ All tests passed' : `⚠️ ${evaluation.passedCount}/${evaluation.totalCount} passed`}</span>}
                         </div>
                         <div className="flex items-center gap-2">
                             {evaluation && (
-                                <button onClick={() => { setEvaluation(null); setRightTab('editor'); }}
-                                    className="px-4 py-2 text-xs text-white/40 border border-white/8 hover:border-white/20 hover:text-white rounded-lg transition-all">
-                                    Reset
-                                </button>
+                                <>
+                                    <button onClick={() => { setEvaluation(null); setRightTab('editor'); }}
+                                        className="px-4 py-2 text-xs text-white/40 border border-white/8 hover:border-white/20 hover:text-white rounded-lg transition-all">
+                                        Reset
+                                    </button>
+                                    <button onClick={handleNextProblem}
+                                        className="px-4 py-2 text-xs text-white/60 border border-white/15 hover:border-white/30 hover:text-white rounded-lg transition-all">
+                                        {problemIndex + 1 >= maxProblemsRef.current ? 'Finish Session 🏆' : 'Next Problem →'}
+                                    </button>
+                                </>
                             )}
                             <button
                                 onClick={handleRunCode}
