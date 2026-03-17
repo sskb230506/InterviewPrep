@@ -15,6 +15,8 @@ import Question from '../models/Question.js';
 import Answer from '../models/Answer.js';
 import Evaluation from '../models/Evaluation.js';
 import JudgeAudit from '../models/JudgeAudit.js';
+import DSASubmission from '../models/DSASubmission.js';
+import ConceptSubmission from '../models/ConceptSubmission.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -115,10 +117,12 @@ router.post('/:sessionId/answer/:questionId', authenticateToken, upload.single('
         // 1. STT
         const transcript = await transcribeAudio(req.file.path);
 
+        // Remove the audio file so we don't store it on the server
+        fs.unlinkSync(req.file.path);
+
         const answer = await Answer.create({
             questionId,
-            transcript,
-            audioUrl: req.file.path
+            transcript
         });
 
         // 2. Evaluate
@@ -150,6 +154,132 @@ router.post('/:sessionId/answer/:questionId', authenticateToken, upload.single('
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to process answer.' });
+    }
+});
+
+// 4. Fetch User Sessions (History)
+router.get('/history', authenticateToken, async (req, res) => {
+    try {
+        const sessions = await Session.find({ userId: req.user.userId })
+            .sort({ createdAt: -1 })
+            .select('-resumeText -jdText') // exclude heavy text fields
+            .lean();
+
+        // Filter out empty sessions (sessions where user didn't actually answer/submit anything)
+        const sessionIds = sessions.map(s => s._id);
+        const questions = await Question.find({ sessionId: { $in: sessionIds } }).lean();
+        const answers = await Answer.find({ questionId: { $in: questions.map(q => q._id) } }).lean();
+        const dsaSubs = await DSASubmission.find({ sessionId: { $in: sessionIds } }).lean();
+        const conceptSubs = await ConceptSubmission.find({ sessionId: { $in: sessionIds } }).lean();
+
+        const validSessionIds = new Set();
+        answers.forEach(a => {
+            const q = questions.find(q => q._id.toString() === a.questionId.toString());
+            if (q) validSessionIds.add(q.sessionId.toString());
+        });
+        dsaSubs.forEach(s => s.sessionId && validSessionIds.add(s.sessionId.toString()));
+        conceptSubs.forEach(s => s.sessionId && validSessionIds.add(s.sessionId.toString()));
+
+        const filteredSessions = sessions.filter(s => validSessionIds.has(s._id.toString()));
+
+        res.json(filteredSessions);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch history.' });
+    }
+});
+
+// 5. Fetch Specific Session Details
+router.get('/history/:sessionId', authenticateToken, async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const session = await Session.findById(sessionId);
+
+        if (!session || session.userId.toString() !== req.user.userId) {
+            return res.status(403).json({ error: 'Unauthorized or session not found.' });
+        }
+
+        let details = [];
+
+        if (session.mode === 'dsa') {
+            const subs = await DSASubmission.find({ sessionId }).lean();
+            details = subs.map(sub => ({
+                question: { text: sub.problemTitle, difficulty: sub.difficulty },
+                answer: { transcript: `Submitted ${sub.language} code in ${sub.timeUsedSeconds}s.` },
+                evaluation: {
+                    generalFeedback: `Passed ${sub.passedCount} out of ${sub.totalCount} test cases.`,
+                    scoreTech: sub.score, scoreRelevance: sub.score, scoreDepth: sub.score, scoreClarity: sub.score
+                }
+            }));
+        } else if (session.mode === 'concepts') {
+            const subs = await ConceptSubmission.find({ sessionId }).lean();
+            details = subs.map(sub => ({
+                question: { text: `Topic: ${sub.topic}`, difficulty: sub.difficulty },
+                answer: { transcript: `Answered via ${sub.answerMode}. Time used: ${sub.timeUsedSeconds}s.` },
+                evaluation: {
+                    generalFeedback: sub.isCorrect ? 'Correct / Passed evaluation.' : 'Incorrect / Failed evaluation.',
+                    scoreTech: sub.score, scoreRelevance: sub.score, scoreDepth: sub.score, scoreClarity: sub.score
+                }
+            }));
+        } else {
+            // standard interview mode
+            const questions = await Question.find({ sessionId }).lean();
+            const qIds = questions.map(q => q._id);
+            const answers = await Answer.find({ questionId: { $in: qIds } }).lean();
+            const aIds = answers.map(a => a._id);
+            const evaluations = await Evaluation.find({ answerId: { $in: aIds } }).lean();
+
+            details = questions.map(q => {
+                const ans = answers.find(a => a.questionId.toString() === q._id.toString());
+                const ev = ans ? evaluations.find(e => e.answerId.toString() === ans._id.toString()) : null;
+                return {
+                    question: q,
+                    answer: ans || null,
+                    evaluation: ev || null
+                };
+            });
+        }
+
+        res.json({ session, details });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch session details.' });
+    }
+});
+
+// 6. Delete Specific Session
+router.delete('/history/:sessionId', authenticateToken, async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const session = await Session.findById(sessionId);
+
+        if (!session || session.userId.toString() !== req.user.userId) {
+            return res.status(403).json({ error: 'Unauthorized or session not found.' });
+        }
+
+        // Delete all associated models to keep the DB clean
+        const questions = await Question.find({ sessionId }).lean();
+        const qIds = questions.map(q => q._id);
+
+        const answers = await Answer.find({ questionId: { $in: qIds } }).lean();
+        const aIds = answers.map(a => a._id);
+
+        // Delete evaluations mapped to these answers
+        await Evaluation.deleteMany({ answerId: { $in: aIds } });
+
+        // Delete answers
+        await Answer.deleteMany({ questionId: { $in: qIds } });
+
+        // Delete questions
+        await Question.deleteMany({ sessionId });
+
+        // Delete the session document itself
+        await Session.findByIdAndDelete(sessionId);
+
+        res.json({ message: 'Session deleted successfully.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete session.' });
     }
 });
 

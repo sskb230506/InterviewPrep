@@ -22,6 +22,7 @@ export async function getUserAnalytics(userId) {
 
     let totalScoreTech = 0, totalScoreRelevance = 0, totalScoreDepth = 0, voiceCount = 0;
     const sessionTrend = [];
+    let completedInterviewSessions = 0; // Only count sessions where user actually answered questions
 
     for (const session of sessions) {
         let sessionScore = 0, sessionEvals = 0;
@@ -40,6 +41,7 @@ export async function getUserAnalytics(userId) {
         }
         if (sessionEvals > 0) {
             sessionTrend.push({ date: session.createdAt, score: parseFloat((sessionScore / sessionEvals).toFixed(2)), mode: 'interview' });
+            completedInterviewSessions++;
         }
     }
 
@@ -51,6 +53,8 @@ export async function getUserAnalytics(userId) {
     const dsaByDifficulty = { Easy: 0, Medium: 0, 'Medium-Hard': 0, Hard: 0 };
     const dsaByDifficultyPassed = { Easy: 0, Medium: 0, 'Medium-Hard': 0, Hard: 0 };
     const dsaTopics = {};
+    const dsaSessionsCount = new Set(dsaSubs.map(s => s.sessionId ? s.sessionId.toString() : s._id.toString())).size;
+
     for (const s of dsaSubs) {
         if (s.difficulty) dsaByDifficulty[s.difficulty] = (dsaByDifficulty[s.difficulty] || 0) + 1;
         if (s.difficulty && s.passed) dsaByDifficultyPassed[s.difficulty] = (dsaByDifficultyPassed[s.difficulty] || 0) + 1;
@@ -70,6 +74,8 @@ export async function getUserAnalytics(userId) {
     const mcqAccuracy = mcqTotal > 0 ? Math.round((mcqCorrect / mcqTotal) * 100) : 0;
     const conceptTopics = {};
     const conceptTopicCorrect = {};
+    const conceptSessionsCount = new Set(conceptSubs.map(s => s.sessionId ? s.sessionId.toString() : s._id.toString())).size;
+
     for (const s of conceptSubs) {
         if (s.topic) {
             conceptTopics[s.topic] = (conceptTopics[s.topic] || 0) + 1;
@@ -110,7 +116,7 @@ export async function getUserAnalytics(userId) {
 
         // ── Voice Interview ──
         interview: {
-            sessionsCompleted: sessions.length,
+            sessionsCompleted: completedInterviewSessions,
             questionsAnswered: voiceCount,
             averages: voiceCount > 0 ? {
                 tech: (totalScoreTech / voiceCount).toFixed(1),
@@ -121,6 +127,7 @@ export async function getUserAnalytics(userId) {
 
         // ── DSA ──
         dsa: {
+            sessionsCompleted: dsaSessionsCount,
             totalAttempted: dsaTotal,
             totalPassed: dsaPassed,
             passRate: dsaTotal > 0 ? Math.round((dsaPassed / dsaTotal) * 100) : 0,
@@ -132,6 +139,7 @@ export async function getUserAnalytics(userId) {
 
         // ── Concepts ──
         concepts: {
+            sessionsCompleted: conceptSessionsCount,
             mcqTotal, mcqCorrect, mcqAccuracy,
             voiceTotal: voiceSubs.length,
             voiceAvgScore: voiceSubs.length > 0 ? (voiceSubs.reduce((s, v) => s + v.score, 0) / voiceSubs.length).toFixed(1) : 0,
@@ -140,7 +148,7 @@ export async function getUserAnalytics(userId) {
         },
 
         // Legacy fields for backward compat
-        sessionsCompleted: sessions.length + dsaSubs.length + conceptSubs.length,
+        sessionsCompleted: completedInterviewSessions + dsaSessionsCount + conceptSessionsCount,
         questionsAnswered: totalAnswered,
         averages: voiceCount > 0 ? {
             tech: (totalScoreTech / voiceCount).toFixed(1),

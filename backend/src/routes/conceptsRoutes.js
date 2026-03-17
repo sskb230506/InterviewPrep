@@ -66,6 +66,10 @@ router.post('/answer/voice', authenticateToken, upload.single('audio'), async (r
         }
 
         const transcript = await transcribeAudio(req.file.path);
+        
+        // Remove the audio file to avoid storing it
+        import('fs').then(fs => fs.unlinkSync(req.file.path)).catch(console.error);
+        
         const evaluation = await evaluateConceptAnswer({
             question,
             keyPoints: JSON.parse(keyPoints || '[]'),
