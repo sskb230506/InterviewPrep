@@ -2,6 +2,22 @@ import React from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
+const C = {
+    navy: '#1A4872', navyLight: '#2e5f8a', navyMuted: '#2e6b9a',
+    navyFaint: 'rgba(26,72,114,0.55)', navyGhost: 'rgba(26,72,114,0.35)',
+    teal: '#52B788', tealDark: '#3d9a6e', 
+    tealLight: 'rgba(82,183,136,0.12)', tealBorder: 'rgba(82,183,136,0.35)',
+    steel: '#2E7DA6', steelLight: 'rgba(46,125,166,0.10)', steelBorder: 'rgba(46,125,166,0.30)',
+    bg: '#f0f9f4',
+    card: '#ffffff',
+    surface: '#ffffff', surfaceAlt: '#f8fdfb',
+    border: 'rgba(26,72,114,0.13)',
+    red: '#c0392b', redLight: 'rgba(192,57,43,0.09)',
+    green: '#27ae60', greenLight: 'rgba(39,174,96,0.10)',
+    yellow: '#d4860a', yellowLight: 'rgba(212,134,10,0.10)', 
+    orange: '#d4600a', orangeLight: 'rgba(212,96,10,0.10)',
+};
+
 export default function Layout() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
@@ -18,14 +34,20 @@ export default function Layout() {
     ];
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="min-h-screen" style={{ backgroundColor: C.bg, color: C.navyMuted, fontFamily: "'Inter', sans-serif" }}>
+            <style>{`
+                .nav-link:hover { background-color: rgba(255,255,255,0.1); color: #fff; }
+                .nav-link.active { background-color: rgba(255,255,255,0.2); color: #fff; }
+                .logout-btn { color: rgba(255,255,255,0.7); }
+                .logout-btn:hover { background-color: ${C.red}; color: #fff; border-color: ${C.red}; }
+            `}</style>
             {/* Navbar */}
-            <header className="sticky top-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-md border-b border-white/5">
+            <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: C.navy }}>
                 <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
                     {/* Logo */}
                     <Link to="/setup" className="flex items-center gap-2.5 group">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center group-hover:bg-white/90 transition-colors">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="black">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill={C.navy}>
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/>
                             </svg>
                         </div>
@@ -40,11 +62,8 @@ export default function Layout() {
                                 <Link
                                     key={to}
                                     to={to}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-                                        active
-                                            ? 'bg-white/10 text-white'
-                                            : 'text-white/40 hover:text-white hover:bg-white/5'
-                                    }`}
+                                    className={`nav-link px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${active ? 'active' : ''}`}
+                                    style={{ color: active ? '#fff' : 'rgba(255,255,255,0.7)' }}
                                 >
                                     {label}
                                 </Link>
@@ -55,14 +74,14 @@ export default function Layout() {
                     {/* Right side: user + logout */}
                     <div className="flex items-center gap-3">
                         <div className="hidden sm:flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs font-semibold text-white/70">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
                                 {(user?.name || user?.email || '?')[0].toUpperCase()}
                             </div>
-                            <span className="text-sm text-white/40">{user?.name || user?.email}</span>
+                            <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>{user?.name || user?.email}</span>
                         </div>
                         <button
                             onClick={handleLogout}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/30 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-150"
+                            className="logout-btn flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-transparent transition-all duration-150"
                             title="Sign out"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

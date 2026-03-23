@@ -2,8 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
+// ─── Constants & Helpers ────────────────────────────────────────────────────────
+const C = {
+    navy: '#1A4872', navyLight: '#2e5f8a', navyMuted: '#2e6b9a',
+    navyFaint: 'rgba(26,72,114,0.55)', navyGhost: 'rgba(26,72,114,0.35)',
+    teal: '#52B788', tealDark: '#3d9a6e', 
+    tealLight: 'rgba(82,183,136,0.12)', tealBorder: 'rgba(82,183,136,0.35)',
+    steel: '#2E7DA6', steelLight: 'rgba(46,125,166,0.10)', steelBorder: 'rgba(46,125,166,0.30)',
+    bg: '#f0f9f4',
+    card: '#ffffff',
+    surface: '#ffffff', surfaceAlt: '#f8fdfb',
+    border: 'rgba(26,72,114,0.13)',
+    red: '#c0392b', redLight: 'rgba(192,57,43,0.09)',
+    green: '#27ae60', greenLight: 'rgba(39,174,96,0.10)',
+    yellow: '#d4860a', yellowLight: 'rgba(212,134,10,0.10)', 
+    orange: '#d4600a', orangeLight: 'rgba(212,96,10,0.10)',
+};
 const fmtTime = (secs) => {
     if (!secs || secs < 60) return `${secs || 0}s`;
     const m = Math.floor(secs / 60), s = secs % 60;
@@ -21,13 +35,13 @@ const DIFF_STYLE = {
 
 function Stat({ label, value, sub, icon }) {
     return (
-        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-5 hover:bg-white/[0.05] transition-colors">
+        <div className="rounded-2xl p-5 hover:bg-white/50 transition-colors" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: `0 4px 20px rgba(26,72,114,0.06)` }}>
             <div className="flex items-start justify-between mb-3">
                 <span className="text-2xl">{icon}</span>
             </div>
-            <p className="text-white/30 text-xs font-medium mb-0.5">{label}</p>
-            <p className="text-2xl font-bold text-white tracking-tight">{value ?? '—'}</p>
-            {sub && <p className="text-white/20 text-xs mt-1">{sub}</p>}
+            <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: C.navyFaint }}>{label}</p>
+            <p className="text-2xl font-bold tracking-tight" style={{ color: C.navy }}>{value ?? '—'}</p>
+            {sub && <p className="text-xs mt-1" style={{ color: C.navyGhost }}>{sub}</p>}
         </div>
     );
 }
@@ -37,23 +51,24 @@ function SectionHeader({ emoji, title, sub }) {
         <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
                 <span>{emoji}</span>
-                <h2 className="text-base font-bold text-white">{title}</h2>
+                <h2 className="text-base font-bold" style={{ color: C.navy }}>{title}</h2>
             </div>
-            {sub && <span className="text-xs text-white/30">{sub}</span>}
+            {sub && <span className="text-xs" style={{ color: C.navyGhost }}>{sub}</span>}
         </div>
     );
 }
 
-function ProgressBar({ label, value, max = 10, color = 'bg-white/40', right }) {
+function ProgressBar({ label, value, max = 10, color, right }) {
     const pct = Math.min((value / max) * 100, 100);
+    const barColor = pct >= 70 ? C.green : pct >= 50 ? C.yellow : C.red;
     return (
         <div>
             <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-white/50">{label}</span>
-                <span className="text-white/60 font-medium">{right || `${value}/${max}`}</span>
+                <span className="font-semibold uppercase" style={{ color: C.navyFaint }}>{label}</span>
+                <span className="font-medium" style={{ color: C.navyMuted }}>{right || `${value}/${max}`}</span>
             </div>
-            <div className="w-full bg-white/6 rounded-full h-1.5 overflow-hidden">
-                <div className={`h-1.5 rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
+            <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ backgroundColor: C.steelLight }}>
+                <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: barColor }} />
             </div>
         </div>
     );
@@ -61,23 +76,23 @@ function ProgressBar({ label, value, max = 10, color = 'bg-white/40', right }) {
 
 function ScoreChart({ trend }) {
     if (!trend || trend.length === 0) return (
-        <div className="h-40 flex items-center justify-center text-white/20 text-sm">No data yet</div>
+        <div className="h-40 flex items-center justify-center text-sm" style={{ color: C.navyGhost }}>No data yet</div>
     );
     const maxScore = 10;
-    const modeColor = { interview: 'bg-blue-400/50', dsa: 'bg-green-400/50', mcq: 'bg-purple-400/50', 'voice-concepts': 'bg-yellow-400/50' };
+    const modeColor = { interview: C.steel, dsa: C.green, mcq: C.navy, 'voice-concepts': C.yellow };
 
     return (
         <div className="h-40 flex items-end gap-1.5">
             {trend.slice(-20).map((t, i) => {
                 const h = (t.score / maxScore) * 100;
-                const color = modeColor[t.mode] || 'bg-white/30';
+                const color = modeColor[t.mode] || C.navyLight;
                 return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-                        <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1a1a1a] border border-white/10 rounded-lg px-2 py-1 z-10 whitespace-nowrap text-[10px] text-white/70 pointer-events-none">
+                        <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg px-2 py-1 z-10 whitespace-nowrap text-[10px] pointer-events-none" style={{ backgroundColor: C.navy, color: '#fff', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
                             {t.score}/10 · {t.mode}
                         </div>
-                        <div className="w-full bg-white/5 rounded-t relative" style={{ height: '100%' }}>
-                            <div className={`absolute bottom-0 w-full ${color} group-hover:brightness-125 rounded-t transition-all duration-500`} style={{ height: `${h}%` }} />
+                        <div className="w-full rounded-t relative" style={{ height: '100%', backgroundColor: C.steelLight }}>
+                            <div className="absolute bottom-0 w-full group-hover:brightness-110 rounded-t transition-all duration-500" style={{ height: `${h}%`, backgroundColor: color }} />
                         </div>
                     </div>
                 );
@@ -102,11 +117,11 @@ export default function Dashboard() {
     const [historyFilter, setHistoryFilter] = useState('all'); // all, interview, dsa, mcq, voice-concepts
 
     const getRankBadge = (answered) => {
-        if (answered >= 100) return { label: 'Legend', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
-        if (answered >= 50) return { label: 'Advanced', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
-        if (answered >= 20) return { label: 'Intermediate', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
-        if (answered > 0) return { label: 'Beginner', color: 'bg-green-500/20 text-green-400 border-green-500/30' };
-        return { label: 'Novice', color: 'bg-white/10 text-white/50 border-white/20' };
+        if (answered >= 100) return { label: 'Legend', color: 'bg-orange-500/10 text-orange-600 border-orange-500/20' };
+        if (answered >= 50) return { label: 'Advanced', color: 'bg-purple-500/10 text-purple-600 border-purple-500/20' };
+        if (answered >= 20) return { label: 'Intermediate', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20' };
+        if (answered > 0) return { label: 'Beginner', color: 'bg-green-500/10 text-green-600 border-green-500/20' };
+        return { label: 'Novice', color: 'bg-gray-100 text-gray-500 border-gray-200' };
     };
 
     const downloadSessionReport = () => {
@@ -201,8 +216,8 @@ export default function Dashboard() {
 
     if (loading) return (
         <div className="min-h-[60vh] flex flex-col justify-center items-center gap-4">
-            <div className="w-8 h-8 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" />
-            <p className="text-white/30 text-sm">Loading analytics...</p>
+            <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: C.tealBorder, borderTopColor: C.teal }} />
+            <p className="text-sm" style={{ color: C.navyGhost }}>Loading analytics...</p>
         </div>
     );
 
@@ -211,11 +226,11 @@ export default function Dashboard() {
     if (!hasAnyData) return (
         <div className="max-w-md mx-auto mt-20 text-center" style={{ fontFamily: "'Inter', sans-serif" }}>
             <div className="text-5xl mb-6">📊</div>
-            <h2 className="text-xl font-bold text-white mb-2">No data yet</h2>
-            <p className="text-white/30 text-sm leading-relaxed mb-8">
+            <h2 className="text-xl font-bold mb-2" style={{ color: C.navy }}>No data yet</h2>
+            <p className="text-sm leading-relaxed mb-8" style={{ color: C.navyMuted }}>
                 Complete a Mock Interview, Core Concepts quiz, or DSA session to see your analytics here.
             </p>
-            <button onClick={() => navigate('/setup')} className="bg-white text-black text-sm font-semibold px-6 py-3 rounded-xl hover:bg-white/90 transition-all">
+            <button onClick={() => navigate('/setup')} className="text-sm font-semibold px-6 py-3 rounded-xl transition-all" style={{ backgroundColor: C.navy, color: '#fff' }}>
                 Start a Session →
             </button>
         </div>
@@ -224,26 +239,26 @@ export default function Dashboard() {
     const { interview, dsa, concepts, trend, totalTimeSeconds, overallAvg } = data;
 
     return (
-        <div className="max-w-5xl mx-auto" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="max-w-5xl mx-auto pb-10" style={{ fontFamily: "'Inter', sans-serif" }}>
             {/* Header */}
             <div className="mb-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/10 rounded-full text-xs text-white/40 mb-4 bg-white/5">
-                    <span className="w-1.5 h-1.5 bg-white/60 rounded-full" />
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider mb-4" style={{ backgroundColor: C.steelLight, color: C.steel, border: `1px solid ${C.steelBorder}` }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.steel }} />
                     Analytics
                 </div>
                 <div className="flex items-end justify-between">
                     <div>
                         <div className="flex items-center gap-3 mb-1">
-                            <h1 className="text-3xl font-bold text-white tracking-tight">Performance Dashboard</h1>
+                            <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: C.navy }}>Performance Dashboard</h1>
                             {data && (
                                 <span className={`px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold rounded-full border ${getRankBadge(data.questionsAnswered).color}`}>
                                     {getRankBadge(data.questionsAnswered).label} Rank
                                 </span>
                             )}
                         </div>
-                        <p className="text-white/30 text-sm">All your practice data in one place.</p>
+                        <p className="text-sm font-medium" style={{ color: C.navyGhost }}>All your practice data in one place.</p>
                     </div>
-                    <button onClick={fetchDashboard} className="text-xs text-white/30 hover:text-white flex items-center gap-1.5 border border-white/8 hover:border-white/20 px-3 py-2 rounded-xl transition-all">
+                    <button onClick={fetchDashboard} className="text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all font-semibold" style={{ color: C.navyMuted, border: `1px solid ${C.border}`, backgroundColor: C.card }}>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                         Refresh
                     </button>
@@ -259,7 +274,7 @@ export default function Dashboard() {
             </div>
 
             {/* Tab navigation */}
-            <div className="flex gap-1 p-1 bg-white/5 border border-white/8 rounded-xl w-fit mb-6 overflow-x-auto max-w-full">
+            <div className="flex gap-1 p-1 rounded-xl w-fit mb-6 overflow-x-auto max-w-full" style={{ backgroundColor: '#fff', border: `1px solid ${C.border}`, boxShadow: '0 2px 10px rgba(26,72,114,0.03)' }}>
                 {[
                     { id: 'overview', label: '📊 Overview' },
                     { id: 'dsa', label: '💻 DSA' },
@@ -268,7 +283,8 @@ export default function Dashboard() {
                     { id: 'history', label: '🗂️ History' },
                 ].map(t => (
                     <button key={t.id} onClick={() => setTab(t.id)}
-                        className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm transition-all duration-150 font-medium ${tab === t.id ? 'bg-white text-black' : 'text-white/40 hover:text-white'}`}
+                        className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm transition-all duration-150 font-semibold`}
+                        style={{ backgroundColor: tab === t.id ? C.navy : 'transparent', color: tab === t.id ? '#fff' : C.navyMuted }}
                     >{t.label}</button>
                 ))}
             </div>
@@ -277,14 +293,14 @@ export default function Dashboard() {
             {tab === 'overview' && (
                 <div className="space-y-6">
                     {/* Score trend chart */}
-                    <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                    <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                         <SectionHeader emoji="📈" title="Score Trend" sub="Last 20 submissions" />
                         <ScoreChart trend={trend} />
                         {/* Legend */}
                         <div className="flex flex-wrap gap-4 mt-4">
-                            {[['interview', 'bg-blue-400/50', '🎙️ Interview'], ['dsa', 'bg-green-400/50', '💻 DSA'], ['mcq', 'bg-purple-400/50', '📝 MCQ'], ['voice-concepts', 'bg-yellow-400/50', '🎤 Concepts Voice']].map(([k, c, l]) => (
-                                <div key={k} className="flex items-center gap-1.5 text-xs text-white/30">
-                                    <div className={`w-2.5 h-2.5 rounded-sm ${c}`} />{l}
+                            {[['interview', C.steel, '🎙️ Interview'], ['dsa', C.green, '💻 DSA'], ['mcq', C.navy, '📝 MCQ'], ['voice-concepts', C.yellow, '🎤 Concepts Voice']].map(([k, c, l]) => (
+                                <div key={k} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.navyMuted }}>
+                                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: c }} />{l}
                                 </div>
                             ))}
                         </div>
@@ -293,39 +309,39 @@ export default function Dashboard() {
                     {/* Mode summary cards */}
                     <div className="grid md:grid-cols-3 gap-4">
                         {/* DSA card */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-5">
-                            <div className="text-lg mb-2">💻</div>
-                            <h3 className="text-sm font-bold text-white mb-3">DSA Practice</h3>
+                        <div className="rounded-2xl p-5 hover:bg-white/50 transition-colors cursor-pointer" onClick={() => setTab('dsa')} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
+                            <div className="text-xl mb-3">💻</div>
+                            <h3 className="text-sm font-bold mb-3" style={{ color: C.navy }}>DSA Practice</h3>
                             <div className="space-y-2">
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Attempted</span><span className="text-white font-semibold">{dsa.totalAttempted}</span></div>
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Pass Rate</span><span className={`font-semibold ${dsa.passRate >= 70 ? 'text-green-400' : dsa.passRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{dsa.passRate}%</span></div>
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Avg Score</span><span className="text-white font-semibold">{dsa.avgScore}/10</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Attempted</span><span className="font-semibold" style={{ color: C.navy }}>{dsa.totalAttempted}</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Pass Rate</span><span className="font-semibold" style={{ color: dsa.passRate >= 70 ? C.green : dsa.passRate >= 50 ? C.yellow : C.red }}>{dsa.passRate}%</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Avg Score</span><span className="font-semibold" style={{ color: C.navy }}>{dsa.avgScore}/10</span></div>
                             </div>
-                            <button onClick={() => setTab('dsa')} className="text-xs text-white/30 hover:text-white mt-3 transition-colors">View details →</button>
+                            <div className="text-xs font-semibold mt-4" style={{ color: C.teal }}>View details →</div>
                         </div>
 
                         {/* MCQ card */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-5">
-                            <div className="text-lg mb-2">📝</div>
-                            <h3 className="text-sm font-bold text-white mb-3">Core Concepts (MCQ)</h3>
+                        <div className="rounded-2xl p-5 hover:bg-white/50 transition-colors cursor-pointer" onClick={() => setTab('concepts')} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
+                            <div className="text-xl mb-3">📝</div>
+                            <h3 className="text-sm font-bold mb-3" style={{ color: C.navy }}>Core Concepts (MCQ)</h3>
                             <div className="space-y-2">
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Attempted</span><span className="text-white font-semibold">{concepts.mcqTotal}</span></div>
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Accuracy</span><span className={`font-semibold ${concepts.mcqAccuracy >= 70 ? 'text-green-400' : concepts.mcqAccuracy >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{concepts.mcqAccuracy}%</span></div>
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Correct</span><span className="text-white font-semibold">{concepts.mcqCorrect}/{concepts.mcqTotal}</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Attempted</span><span className="font-semibold" style={{ color: C.navy }}>{concepts.mcqTotal}</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Accuracy</span><span className="font-semibold" style={{ color: concepts.mcqAccuracy >= 70 ? C.green : concepts.mcqAccuracy >= 50 ? C.yellow : C.red }}>{concepts.mcqAccuracy}%</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Correct</span><span className="font-semibold" style={{ color: C.navy }}>{concepts.mcqCorrect}/{concepts.mcqTotal}</span></div>
                             </div>
-                            <button onClick={() => setTab('concepts')} className="text-xs text-white/30 hover:text-white mt-3 transition-colors">View details →</button>
+                            <div className="text-xs font-semibold mt-4" style={{ color: C.teal }}>View details →</div>
                         </div>
 
                         {/* Interview card */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-5">
-                            <div className="text-lg mb-2">🎙️</div>
-                            <h3 className="text-sm font-bold text-white mb-3">Mock Interview</h3>
+                        <div className="rounded-2xl p-5 hover:bg-white/50 transition-colors cursor-pointer" onClick={() => setTab('interview')} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
+                            <div className="text-xl mb-3">🎙️</div>
+                            <h3 className="text-sm font-bold mb-3" style={{ color: C.navy }}>Mock Interview</h3>
                             <div className="space-y-2">
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Sessions</span><span className="text-white font-semibold">{interview.sessionsCompleted}</span></div>
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Answered</span><span className="text-white font-semibold">{interview.questionsAnswered}</span></div>
-                                <div className="flex justify-between text-xs"><span className="text-white/40">Tech Avg.</span><span className="text-white font-semibold">{interview.averages?.tech || '—'}</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Sessions</span><span className="font-semibold" style={{ color: C.navy }}>{interview.sessionsCompleted}</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Answered</span><span className="font-semibold" style={{ color: C.navy }}>{interview.questionsAnswered}</span></div>
+                                <div className="flex justify-between text-xs"><span style={{ color: C.navyGhost }}>Tech Avg.</span><span className="font-semibold" style={{ color: C.navy }}>{interview.averages?.tech || '—'}</span></div>
                             </div>
-                            <button onClick={() => setTab('interview')} className="text-xs text-white/30 hover:text-white mt-3 transition-colors">View details →</button>
+                            <div className="text-xs font-semibold mt-4" style={{ color: C.teal }}>View details →</div>
                         </div>
                     </div>
                 </div>
@@ -343,7 +359,7 @@ export default function Dashboard() {
 
                     <div className="grid md:grid-cols-2 gap-6">
                         {/* By difficulty */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                        <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                             <SectionHeader emoji="🎯" title="By Difficulty" />
                             <div className="space-y-4">
                                 {Object.entries(dsa.byDifficulty).filter(([, v]) => v > 0).map(([diff, total]) => {
@@ -355,30 +371,30 @@ export default function Dashboard() {
                                                 <div className="flex items-center gap-2">
                                                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${DIFF_STYLE[diff]}`}>{diff}</span>
                                                 </div>
-                                                <span className="text-xs text-white/50">{passed}/{total} passed · {rate}%</span>
+                                                <span className="text-xs font-medium" style={{ color: C.navyMuted }}>{passed}/{total} passed · {rate}%</span>
                                             </div>
-                                            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-                                                <div className={`h-1.5 rounded-full transition-all duration-700 ${rate >= 70 ? 'bg-green-400/60' : rate >= 50 ? 'bg-yellow-400/60' : 'bg-red-400/60'}`} style={{ width: `${rate}%` }} />
+                                            <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ backgroundColor: C.steelLight }}>
+                                                <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${rate}%`, backgroundColor: rate >= 70 ? C.green : rate >= 50 ? C.yellow : C.red }} />
                                             </div>
                                         </div>
                                     );
                                 })}
                                 {Object.values(dsa.byDifficulty).every(v => v === 0) && (
-                                    <p className="text-white/20 text-sm text-center py-4">No DSA submissions yet</p>
+                                    <p className="text-sm text-center py-4" style={{ color: C.navyGhost }}>No DSA submissions yet</p>
                                 )}
                             </div>
                         </div>
 
                         {/* Top topics */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                        <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                             <SectionHeader emoji="🏷️" title="Practiced Topics" />
                             {dsa.topTopics?.length > 0 ? (
                                 <div className="space-y-3">
                                     {dsa.topTopics.map(({ topic, count }) => (
-                                        <ProgressBar key={topic} label={topic} value={count} max={Math.max(...dsa.topTopics.map(t => t.count), 1)} right={`${count} problems`} color="bg-green-400/40" />
+                                        <ProgressBar key={topic} label={topic} value={count} max={Math.max(...dsa.topTopics.map(t => t.count), 1)} right={`${count} problems`} />
                                     ))}
                                 </div>
-                            ) : <p className="text-white/20 text-sm text-center py-4">No topic data yet</p>}
+                            ) : <p className="text-sm text-center py-4" style={{ color: C.navyGhost }}>No topic data yet</p>}
                         </div>
                     </div>
                 </div>
@@ -396,43 +412,43 @@ export default function Dashboard() {
 
                     <div className="grid md:grid-cols-2 gap-6">
                         {/* MCQ Accuracy bar */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                        <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                             <SectionHeader emoji="📊" title="MCQ Accuracy" sub={`${concepts.mcqCorrect} of ${concepts.mcqTotal}`} />
                             <div className="flex items-center justify-center mb-4">
                                 <div className="relative w-28 h-28">
                                     <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                                        <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+                                        <circle cx="50" cy="50" r="40" fill="none" stroke={C.steelLight} strokeWidth="10" />
                                         <circle cx="50" cy="50" r="40" fill="none"
-                                            stroke={concepts.mcqAccuracy >= 70 ? '#4ade80' : concepts.mcqAccuracy >= 50 ? '#facc15' : '#f87171'}
+                                            stroke={concepts.mcqAccuracy >= 70 ? C.green : concepts.mcqAccuracy >= 50 ? C.yellow : C.red}
                                             strokeWidth="10" strokeLinecap="round"
                                             strokeDasharray={`${(concepts.mcqAccuracy / 100) * 251} 251`}
                                             style={{ transition: 'stroke-dasharray 1s ease' }}
                                         />
                                     </svg>
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-2xl font-bold text-white">{concepts.mcqAccuracy}%</span>
+                                        <span className="text-2xl font-bold" style={{ color: C.navy }}>{concepts.mcqAccuracy}%</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex justify-center gap-6 text-xs">
-                                <div className="text-center"><div className="text-green-400 font-bold text-lg">{concepts.mcqCorrect}</div><div className="text-white/30">Correct</div></div>
-                                <div className="text-center"><div className="text-red-400 font-bold text-lg">{concepts.mcqTotal - concepts.mcqCorrect}</div><div className="text-white/30">Wrong</div></div>
+                                <div className="text-center"><div className="font-bold text-lg" style={{ color: C.green }}>{concepts.mcqCorrect}</div><div style={{ color: C.navyGhost }}>Correct</div></div>
+                                <div className="text-center"><div className="font-bold text-lg" style={{ color: C.red }}>{concepts.mcqTotal - concepts.mcqCorrect}</div><div style={{ color: C.navyGhost }}>Wrong</div></div>
                             </div>
                         </div>
 
                         {/* Weak topics */}
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                        <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                             <SectionHeader emoji="⚠️" title="Weak Topics" sub="needs improvement" />
                             {concepts.weakTopics?.length > 0 ? (
                                 <div className="space-y-3">
                                     {concepts.weakTopics.map(({ topic, accuracy, total }) => (
                                         <div key={topic}>
                                             <div className="flex justify-between text-xs mb-1.5">
-                                                <span className="text-white/50">{topic}</span>
-                                                <span className="text-red-400 font-medium">{accuracy}% · {total} questions</span>
+                                                <span className="font-semibold" style={{ color: C.navyFaint }}>{topic}</span>
+                                                <span className="font-medium" style={{ color: C.red }}>{accuracy}% · {total} questions</span>
                                             </div>
-                                            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-                                                <div className="h-1.5 rounded-full bg-red-400/50 transition-all duration-700" style={{ width: `${accuracy}%` }} />
+                                            <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ backgroundColor: C.steelLight }}>
+                                                <div className="h-1.5 rounded-full transition-all duration-700" style={{ backgroundColor: C.redLight, width: `${accuracy}%` }} />
                                             </div>
                                         </div>
                                     ))}
@@ -440,7 +456,7 @@ export default function Dashboard() {
                             ) : (
                                 <div className="text-center py-6">
                                     <div className="text-2xl mb-2">🎉</div>
-                                    <p className="text-white/30 text-sm">{concepts.mcqTotal > 0 ? 'No weak topics — great job!' : 'Complete some MCQs to see weak areas'}</p>
+                                    <p className="text-sm" style={{ color: C.navyGhost }}>{concepts.mcqTotal > 0 ? 'No weak topics — great job!' : 'Complete some MCQs to see weak areas'}</p>
                                 </div>
                             )}
                         </div>
@@ -448,11 +464,11 @@ export default function Dashboard() {
 
                     {/* Top topics practiced */}
                     {concepts.topTopics?.length > 0 && (
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                        <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                             <SectionHeader emoji="🏷️" title="Most Practiced Topics" />
                             <div className="grid md:grid-cols-2 gap-x-8 gap-y-3">
                                 {concepts.topTopics.map(({ topic, count }) => (
-                                    <ProgressBar key={topic} label={topic} value={count} max={Math.max(...concepts.topTopics.map(t => t.count), 1)} right={`${count}×`} color="bg-purple-400/40" />
+                                    <ProgressBar key={topic} label={topic} value={count} max={Math.max(...concepts.topTopics.map(t => t.count), 1)} right={`${count}×`} />
                                 ))}
                             </div>
                         </div>
@@ -470,12 +486,12 @@ export default function Dashboard() {
                     </div>
 
                     {interview.averages && (
-                        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+                        <div className="rounded-2xl p-6" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 4px 20px rgba(26,72,114,0.06)' }}>
                             <SectionHeader emoji="📊" title="Skill Breakdown" />
                             <div className="space-y-5">
-                                <ProgressBar label="Technical Accuracy" value={parseFloat(interview.averages.tech)} max={10} color="bg-blue-400/50" right={`${interview.averages.tech}/10`} />
-                                <ProgressBar label="Answer Relevance" value={parseFloat(interview.averages.relevance)} max={10} color="bg-purple-400/50" right={`${interview.averages.relevance}/10`} />
-                                <ProgressBar label="Depth & Detail" value={parseFloat(interview.averages.depth)} max={10} color="bg-indigo-400/50" right={`${interview.averages.depth}/10`} />
+                                <ProgressBar label="Technical Accuracy" value={parseFloat(interview.averages.tech)} max={10} right={`${interview.averages.tech}/10`} />
+                                <ProgressBar label="Answer Relevance" value={parseFloat(interview.averages.relevance)} max={10} right={`${interview.averages.relevance}/10`} />
+                                <ProgressBar label="Depth & Detail" value={parseFloat(interview.averages.depth)} max={10} right={`${interview.averages.depth}/10`} />
                             </div>
                         </div>
                     )}
@@ -483,8 +499,8 @@ export default function Dashboard() {
                     {!interview.averages && (
                         <div className="text-center py-12">
                             <div className="text-3xl mb-3">🎙️</div>
-                            <p className="text-white/30 text-sm">Complete a Mock Interview to see skill analytics here.</p>
-                            <button onClick={() => navigate('/setup')} className="mt-4 bg-white text-black text-xs font-semibold px-5 py-2.5 rounded-xl hover:bg-white/90 transition-all">Start Interview →</button>
+                            <p className="text-sm" style={{ color: C.navyGhost }}>Complete a Mock Interview to see skill analytics here.</p>
+                            <button onClick={() => navigate('/setup')} className="mt-4 text-xs font-semibold px-5 py-2.5 rounded-xl transition-all" style={{ backgroundColor: C.navy, color: '#fff' }}>Start Interview →</button>
                         </div>
                     )}
                 </div>
@@ -494,21 +510,22 @@ export default function Dashboard() {
             {tab === 'history' && (
                 <div className="w-full min-h-[500px] h-[600px] flex gap-6" style={{ fontFamily: "'Inter', sans-serif" }}>
                     {/* Sidebar: List of Sessions */}
-                    <div className="w-1/3 flex flex-col bg-white/[0.03] border border-white/8 rounded-2xl overflow-hidden">
-                        <div className="p-5 border-b border-white/8 bg-white/5">
+                    <div className="w-1/3 flex flex-col rounded-2xl overflow-hidden" style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, boxShadow: `0 4px 20px rgba(26,72,114,0.04)` }}>
+                        <div className="p-5" style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surfaceAlt }}>
                             <div className="flex items-center justify-between mb-2">
-                                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: C.navy }}>
                                     🗂️ Interview Folders
                                 </h2>
                             </div>
-                            <p className="text-white/40 text-xs mt-1 mb-4">Your past practice sessions</p>
+                            <p className="text-xs mt-1 mb-4 font-medium" style={{ color: C.navyGhost }}>Your past practice sessions</p>
                             
-                            <div className="flex bg-[#0a0a0a] p-1 rounded-lg border border-white/5">
+                            <div className="flex p-1 rounded-lg" style={{ backgroundColor: C.surface, border: `1px solid ${C.border}` }}>
                                 {['all', 'interview', 'dsa'].map(f => (
                                     <button 
                                         key={f}
                                         onClick={() => setHistoryFilter(f)}
-                                        className={`flex-1 text-[11px] font-medium py-1.5 rounded-md capitalize transition-all ${historyFilter === f ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+                                        className={`flex-1 text-[11px] font-bold py-1.5 rounded-md capitalize transition-all ${historyFilter === f ? 'shadow-sm' : ''}`}
+                                        style={{ backgroundColor: historyFilter === f ? C.navy : 'transparent', color: historyFilter === f ? '#fff' : C.navyMuted }}
                                     >
                                         {f}
                                     </button>
@@ -517,11 +534,11 @@ export default function Dashboard() {
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                             {historyLoading ? (
-                                <p className="text-white/40 text-sm text-center py-4">Loading sessions...</p>
+                                <p className="text-sm text-center py-4 font-semibold" style={{ color: C.navyGhost }}>Loading sessions...</p>
                             ) : historyData.length === 0 ? (
-                                <p className="text-white/40 text-sm text-center py-4">No past sessions found.</p>
+                                <p className="text-sm text-center py-4 font-semibold" style={{ color: C.navyGhost }}>No past sessions found.</p>
                             ) : historyData.filter(s => historyFilter === 'all' || s.mode === historyFilter).length === 0 ? (
-                                <p className="text-white/40 text-sm text-center py-4">No sessions found for this filter.</p>
+                                <p className="text-sm text-center py-4 font-semibold" style={{ color: C.navyGhost }}>No sessions found for this filter.</p>
                             ) : (
                                 historyData.filter(s => historyFilter === 'all' || s.mode === historyFilter).map((session) => {
                                     const isSelected = selectedSessionId === session._id;
@@ -529,20 +546,22 @@ export default function Dashboard() {
                                         <div key={session._id} className="relative group">
                                             <button
                                                 onClick={() => loadSessionDetails(session._id)}
-                                                className={`w-full text-left p-4 rounded-xl transition-all ${isSelected
-                                                        ? 'bg-blue-500/20 border border-blue-500/50 pr-10'
-                                                        : 'bg-white/5 border border-white/5 hover:bg-white/10 pr-10'
-                                                    }`}
+                                                className={`w-full text-left p-4 rounded-xl transition-all pr-10 hover:brightness-95`}
+                                                style={{ 
+                                                    backgroundColor: isSelected ? C.steelLight : C.surfaceAlt, 
+                                                    border: `1px solid ${isSelected ? C.steelBorder : C.border}`,
+                                                    boxShadow: isSelected ? `0 0 0 1px ${C.steel}` : 'none'
+                                                }}
                                             >
                                                 <div className="flex justify-between items-start mb-1">
-                                                    <span className="font-semibold text-sm text-white capitalize">
+                                                    <span className="font-bold text-sm capitalize" style={{ color: C.navy }}>
                                                         {session.mode} Session
                                                     </span>
-                                                    <span className="text-[10px] text-white/40 bg-white/5 px-2 py-0.5 rounded-full">
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'rgba(26,72,114,0.05)', color: C.navyGhost }}>
                                                         {formatDate(session.createdAt)}
                                                     </span>
                                                 </div>
-                                                <div className="text-xs text-white/60 line-clamp-1 mt-1 break-all">
+                                                <div className="text-xs line-clamp-1 mt-1 break-all" style={{ color: C.navyMuted }}>
                                                     Role: {session.jobRole || 'General'}
                                                 </div>
                                             </button>
@@ -563,43 +582,44 @@ export default function Dashboard() {
                     </div>
 
                     {/* Main Content: Session Details */}
-                    <div className="w-2/3 bg-white/[0.02] border border-white/8 rounded-2xl flex flex-col overflow-hidden relative">
+                    <div className="w-2/3 rounded-2xl flex flex-col overflow-hidden relative" style={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, boxShadow: `0 4px 20px rgba(26,72,114,0.04)` }}>
                         {selectedSessionId && loadingDetails ? (
-                            <div className="absolute inset-0 bg-[#0a0a0a]/50 backdrop-blur-sm z-10 flex flex-col justify-center items-center">
-                                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                <p className="text-white/40 text-sm">Loading details...</p>
+                            <div className="absolute inset-0 z-10 flex flex-col justify-center items-center" style={{ backgroundColor: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(4px)' }}>
+                                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mb-3" style={{ borderColor: C.tealBorder, borderTopColor: C.teal }}></div>
+                                <p className="text-sm font-semibold" style={{ color: C.navyGhost }}>Loading details...</p>
                             </div>
                         ) : null}
 
                         {!selectedSessionId ? (
-                            <div className="flex-1 flex flex-col justify-center items-center text-center p-8 text-white/30">
-                                <div className="text-4xl mb-4 opacity-50">📂</div>
-                                <p>Select a session folder from the left<br />to view questions and feedback.</p>
+                            <div className="flex-1 flex flex-col justify-center items-center text-center p-8">
+                                <div className="text-4xl mb-4 opacity-70">📂</div>
+                                <p className="font-medium" style={{ color: C.navyMuted }}>Select a session folder from the left<br />to view questions and feedback.</p>
                             </div>
                         ) : sessionDetails ? (
                             <>
-                                <div className="p-6 border-b border-white/8 bg-white/5 sticky top-0 z-0 flex items-start justify-between">
+                                <div className="p-6 sticky top-0 z-0 flex items-start justify-between" style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.surfaceAlt }}>
                                     <div>
-                                        <h2 className="text-2xl font-bold text-white mb-2 capitalize">
+                                        <h2 className="text-2xl font-extrabold mb-2 capitalize tracking-tight" style={{ color: C.navy }}>
                                             {sessionDetails.session.mode} Session Overview
                                         </h2>
                                         <div className="flex flex-wrap gap-3 text-sm">
-                                            <span className="text-white/60 bg-white/5 px-3 py-1 rounded-lg">
-                                                Role: <strong className="text-white">{sessionDetails.session.jobRole || 'General'}</strong>
+                                            <span className="px-3 py-1 rounded-lg" style={{ backgroundColor: 'rgba(26,72,114,0.04)', color: C.navyMuted }}>
+                                                Role: <strong style={{ color: C.navy }}>{sessionDetails.session.jobRole || 'General'}</strong>
                                             </span>
-                                            <span className="text-white/60 bg-white/5 px-3 py-1 rounded-lg">
-                                                Date: <strong className="text-white">{formatDate(sessionDetails.session.createdAt)}</strong>
+                                            <span className="px-3 py-1 rounded-lg" style={{ backgroundColor: 'rgba(26,72,114,0.04)', color: C.navyMuted }}>
+                                                Date: <strong style={{ color: C.navy }}>{formatDate(sessionDetails.session.createdAt)}</strong>
                                             </span>
                                             {sessionDetails.session.yoe > 0 && (
-                                                <span className="text-white/60 bg-white/5 px-3 py-1 rounded-lg">
-                                                    Experience: <strong className="text-white">{sessionDetails.session.yoe} years</strong>
+                                                <span className="px-3 py-1 rounded-lg" style={{ backgroundColor: 'rgba(26,72,114,0.04)', color: C.navyMuted }}>
+                                                    Experience: <strong style={{ color: C.navy }}>{sessionDetails.session.yoe} years</strong>
                                                 </span>
                                             )}
                                         </div>
                                     </div>
                                     <button 
                                         onClick={downloadSessionReport}
-                                        className="text-[11px] bg-white text-black font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-all flex items-center gap-2 shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+                                        className="text-[11px] font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0"
+                                        style={{ backgroundColor: C.navy, color: '#fff', boxShadow: '0 4px 12px rgba(26,72,114,0.15)' }}
                                     >
                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                         Export Report
@@ -608,42 +628,42 @@ export default function Dashboard() {
 
                                 <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                                     {sessionDetails.details.length === 0 ? (
-                                        <p className="text-white/40 text-center py-10">No questions answered in this session.</p>
+                                        <p className="text-center py-10 font-semibold" style={{ color: C.navyGhost }}>No questions answered in this session.</p>
                                     ) : (
                                         sessionDetails.details.map((item, index) => (
-                                            <div key={item.question?._id || index} className="bg-white/5 border border-white/10 rounded-2xl p-5 relative overflow-hidden">
+                                            <div key={item.question?._id || index} className="rounded-2xl p-5 relative overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 2px 10px rgba(26,72,114,0.02)' }}>
                                                 {/* Question Area */}
                                                 <div className="mb-4">
-                                                    <div className="flex items-center gap-2 mb-2 text-white/40 text-xs font-semibold uppercase tracking-wider">
+                                                    <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider" style={{ color: C.navyFaint }}>
                                                         <span>Question {index + 1}</span>
                                                         {item.question?.difficulty && (
-                                                            <span className={`px-2 py-0.5 rounded-full border ${item.question.difficulty === 'Easy' ? 'text-green-400 border-green-400/20 bg-green-400/10' :
-                                                                    item.question.difficulty === 'Medium' ? 'text-yellow-400 border-yellow-400/20 bg-yellow-400/10' :
-                                                                        'text-red-400 border-red-400/20 bg-red-400/10'
+                                                            <span className={`px-2 py-0.5 rounded-full border ${item.question.difficulty === 'Easy' ? 'text-green-600 border-green-500/20 bg-green-500/10' :
+                                                                    item.question.difficulty === 'Medium' ? 'text-yellow-600 border-yellow-500/20 bg-yellow-500/10' :
+                                                                        'text-red-600 border-red-500/20 bg-red-500/10'
                                                                 }`}>
                                                                 {item.question.difficulty}
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-white text-base leading-relaxed font-medium">
+                                                    <p className="text-base leading-relaxed font-bold tracking-tight" style={{ color: C.navy }}>
                                                         {item.question?.text || "Unknown Question"}
                                                     </p>
                                                 </div>
 
                                                 {/* User's Answer */}
-                                                <div className="bg-[#0a0a0a]/50 p-4 rounded-xl border border-white/5 mb-4">
-                                                    <span className="text-xs text-white/30 uppercase font-semibold mb-2 block tracking-wider flex items-center gap-1.5"><span className="text-blue-400">🎤</span> Your Answer</span>
-                                                    <p className="text-white/80 text-sm leading-relaxed">
-                                                        {item.answer?.transcript || <span className="text-white/20 italic">No answer provided / Audio skip</span>}
+                                                <div className="p-4 rounded-xl mb-4" style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
+                                                    <span className="text-xs uppercase font-bold mb-2 block tracking-wider flex items-center gap-1.5" style={{ color: C.steel }}><span className="text-xl">🎤</span> Your Answer</span>
+                                                    <p className="text-sm leading-relaxed" style={{ color: C.navyMuted }}>
+                                                        {item.answer?.transcript || <span className="italic" style={{ color: C.navyGhost }}>No answer provided / Audio skip</span>}
                                                     </p>
                                                 </div>
 
                                                 {/* Feedback / Evaluation */}
                                                 {item.evaluation ? (
-                                                    <div className="bg-blue-400/5 border border-blue-400/10 rounded-xl p-4">
-                                                        <span className="text-xs text-blue-400/60 uppercase font-semibold mb-3 block tracking-wider flex items-center gap-1.5"><span>💡</span> Evaluation Feedback</span>
+                                                    <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(82,183,136,0.05)', border: `1px solid rgba(82,183,136,0.2)` }}>
+                                                        <span className="text-xs uppercase font-extrabold mb-3 block tracking-wider flex items-center gap-1.5" style={{ color: C.tealDark }}><span>💡</span> Evaluation Feedback</span>
 
-                                                        <p className="text-white/90 text-sm leading-relaxed mb-4">
+                                                        <p className="text-sm leading-relaxed mb-4 font-medium" style={{ color: C.navyMuted }}>
                                                             {item.evaluation.generalFeedback}
                                                         </p>
 
@@ -654,18 +674,18 @@ export default function Dashboard() {
                                                                 { label: 'Depth', val: item.evaluation.scoreDepth, max: 10 },
                                                                 { label: 'Clarity', val: item.evaluation.scoreClarity, max: 10 }
                                                             ].map(score => (
-                                                                <div key={score.label} className="bg-white/5 p-2 rounded-lg text-center">
-                                                                    <div className="text-[10px] text-white/40 mb-1">{score.label}</div>
-                                                                    <div className="font-bold text-white text-sm">
-                                                                        {score.val}<span className="text-white/30 text-[10px]">/{score.max}</span>
+                                                                <div key={score.label} className="p-2 rounded-lg text-center" style={{ backgroundColor: '#fff', border: `1px solid ${C.border}` }}>
+                                                                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: C.navyFaint }}>{score.label}</div>
+                                                                    <div className="font-extrabold text-sm" style={{ color: C.navy }}>
+                                                                        {score.val}<span className="text-[10px] font-medium ml-0.5" style={{ color: C.navyGhost }}>/{score.max}</span>
                                                                     </div>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div className="text-xs text-yellow-400/50 bg-yellow-400/5 p-3 rounded-lg border border-yellow-400/10">
-                                                        No evaluation available for this answer.
+                                                    <div className="text-xs font-semibold p-3 rounded-lg flex items-center gap-2" style={{ backgroundColor: C.yellowLight, border: `1px solid rgba(212,134,10,0.2)`, color: C.yellow }}>
+                                                        <span>⚠️</span> No evaluation available for this answer.
                                                     </div>
                                                 )}
                                             </div>
