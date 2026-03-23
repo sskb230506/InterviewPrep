@@ -91,53 +91,10 @@ function ScoreChart({ trend }) {
 export default function Dashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState('overview'); // overview | dsa | concepts | interview | history
+    const [tab, setTab] = useState('overview'); // overview | dsa | concepts | interview
     const navigate = useNavigate();
 
-    const [historyData, setHistoryData] = useState([]);
-    const [historyLoading, setHistoryLoading] = useState(true);
-    const [selectedSessionId, setSelectedSessionId] = useState(null);
-    const [sessionDetails, setSessionDetails] = useState(null);
-    const [loadingDetails, setLoadingDetails] = useState(false);
-    const [historyFilter, setHistoryFilter] = useState('all'); // all, interview, dsa, mcq, voice-concepts
-
-    const getRankBadge = (answered) => {
-        if (answered >= 100) return { label: 'Legend', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
-        if (answered >= 50) return { label: 'Advanced', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
-        if (answered >= 20) return { label: 'Intermediate', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
-        if (answered > 0) return { label: 'Beginner', color: 'bg-green-500/20 text-green-400 border-green-500/30' };
-        return { label: 'Novice', color: 'bg-white/10 text-white/50 border-white/20' };
-    };
-
-    const downloadSessionReport = () => {
-        if (!sessionDetails) return;
-        const s = sessionDetails.session;
-        let text = `InterviewPrep Session Report\n`;
-        text += `Mode: ${s.mode}\nDate: ${formatDate(s.createdAt)}\nRole: ${s.jobRole || 'General'}\n`;
-        text += `-------------------------------------------------\n\n`;
-        
-        sessionDetails.details.forEach((item, i) => {
-            text += `Question ${i + 1}: ${item.question?.text || 'Unknown'}\n`;
-            text += `Your Answer: ${item.answer?.transcript || 'No answer provided'}\n\n`;
-            if (item.evaluation) {
-                text += `Feedback: ${item.evaluation.generalFeedback}\n`;
-                text += `Scores - Tech: ${item.evaluation.scoreTech}/10 | Relevance: ${item.evaluation.scoreRelevance}/10 | Depth: ${item.evaluation.scoreDepth}/10 | Clarity: ${item.evaluation.scoreClarity}/10\n`;
-            } else {
-                text += `Evaluation: Not available\n`;
-            }
-            text += `\n-------------------------------------------------\n\n`;
-        });
-
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `session-report-${s.mode}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    useEffect(() => { fetchDashboard(); fetchHistory(); }, []);
+    useEffect(() => { fetchDashboard(); }, []);
 
     const fetchDashboard = async () => {
         try {
@@ -148,55 +105,6 @@ export default function Dashboard() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const fetchHistory = async () => {
-        try {
-            setHistoryLoading(true);
-            const res = await api.get('/interview/history');
-            setHistoryData(res.data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setHistoryLoading(false);
-        }
-    };
-
-    const loadSessionDetails = async (id) => {
-        try {
-            setSelectedSessionId(id);
-            setLoadingDetails(true);
-            const res = await api.get(`/interview/history/${id}`);
-            setSessionDetails(res.data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoadingDetails(false);
-        }
-    };
-
-    const deleteSession = async (id, e) => {
-        if (e) e.stopPropagation(); // prevent clicking the folder button
-        const confirmDelete = window.confirm('Are you sure you want to delete this session? This action cannot be undone.');
-        if (!confirmDelete) return;
-
-        try {
-            await api.delete(`/interview/history/${id}`);
-            // Remove from the local list
-            setHistoryData(prev => prev.filter(s => s._id !== id));
-            if (selectedSessionId === id) {
-                setSelectedSessionId(null);
-                setSessionDetails(null);
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Failed to delete session.');
-        }
-    };
-
-    const formatDate = (dateString) => {
-        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
     };
 
     if (loading) return (
@@ -233,14 +141,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-end justify-between">
                     <div>
-                        <div className="flex items-center gap-3 mb-1">
-                            <h1 className="text-3xl font-bold text-white tracking-tight">Performance Dashboard</h1>
-                            {data && (
-                                <span className={`px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold rounded-full border ${getRankBadge(data.questionsAnswered).color}`}>
-                                    {getRankBadge(data.questionsAnswered).label} Rank
-                                </span>
-                            )}
-                        </div>
+                        <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Performance Dashboard</h1>
                         <p className="text-white/30 text-sm">All your practice data in one place.</p>
                     </div>
                     <button onClick={fetchDashboard} className="text-xs text-white/30 hover:text-white flex items-center gap-1.5 border border-white/8 hover:border-white/20 px-3 py-2 rounded-xl transition-all">
@@ -259,16 +160,15 @@ export default function Dashboard() {
             </div>
 
             {/* Tab navigation */}
-            <div className="flex gap-1 p-1 bg-white/5 border border-white/8 rounded-xl w-fit mb-6 overflow-x-auto max-w-full">
+            <div className="flex gap-1 p-1 bg-white/5 border border-white/8 rounded-xl w-fit mb-6">
                 {[
                     { id: 'overview', label: '📊 Overview' },
                     { id: 'dsa', label: '💻 DSA' },
                     { id: 'concepts', label: '📚 Concepts' },
                     { id: 'interview', label: '🎙️ Interview' },
-                    { id: 'history', label: '🗂️ History' },
                 ].map(t => (
                     <button key={t.id} onClick={() => setTab(t.id)}
-                        className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm transition-all duration-150 font-medium ${tab === t.id ? 'bg-white text-black' : 'text-white/40 hover:text-white'}`}
+                        className={`px-4 py-2 rounded-lg text-sm transition-all duration-150 font-medium ${tab === t.id ? 'bg-white text-black' : 'text-white/40 hover:text-white'}`}
                     >{t.label}</button>
                 ))}
             </div>
@@ -487,194 +387,6 @@ export default function Dashboard() {
                             <button onClick={() => navigate('/setup')} className="mt-4 bg-white text-black text-xs font-semibold px-5 py-2.5 rounded-xl hover:bg-white/90 transition-all">Start Interview →</button>
                         </div>
                     )}
-                </div>
-            )}
-
-            {/* ── History Tab ──────────────────────────────────────────────── */}
-            {tab === 'history' && (
-                <div className="w-full min-h-[500px] h-[600px] flex gap-6" style={{ fontFamily: "'Inter', sans-serif" }}>
-                    {/* Sidebar: List of Sessions */}
-                    <div className="w-1/3 flex flex-col bg-white/[0.03] border border-white/8 rounded-2xl overflow-hidden">
-                        <div className="p-5 border-b border-white/8 bg-white/5">
-                            <div className="flex items-center justify-between mb-2">
-                                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                                    🗂️ Interview Folders
-                                </h2>
-                            </div>
-                            <p className="text-white/40 text-xs mt-1 mb-4">Your past practice sessions</p>
-                            
-                            <div className="flex bg-[#0a0a0a] p-1 rounded-lg border border-white/5">
-                                {['all', 'interview', 'dsa'].map(f => (
-                                    <button 
-                                        key={f}
-                                        onClick={() => setHistoryFilter(f)}
-                                        className={`flex-1 text-[11px] font-medium py-1.5 rounded-md capitalize transition-all ${historyFilter === f ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
-                                    >
-                                        {f}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-                            {historyLoading ? (
-                                <p className="text-white/40 text-sm text-center py-4">Loading sessions...</p>
-                            ) : historyData.length === 0 ? (
-                                <p className="text-white/40 text-sm text-center py-4">No past sessions found.</p>
-                            ) : historyData.filter(s => historyFilter === 'all' || s.mode === historyFilter).length === 0 ? (
-                                <p className="text-white/40 text-sm text-center py-4">No sessions found for this filter.</p>
-                            ) : (
-                                historyData.filter(s => historyFilter === 'all' || s.mode === historyFilter).map((session) => {
-                                    const isSelected = selectedSessionId === session._id;
-                                    return (
-                                        <div key={session._id} className="relative group">
-                                            <button
-                                                onClick={() => loadSessionDetails(session._id)}
-                                                className={`w-full text-left p-4 rounded-xl transition-all ${isSelected
-                                                        ? 'bg-blue-500/20 border border-blue-500/50 pr-10'
-                                                        : 'bg-white/5 border border-white/5 hover:bg-white/10 pr-10'
-                                                    }`}
-                                            >
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <span className="font-semibold text-sm text-white capitalize">
-                                                        {session.mode} Session
-                                                    </span>
-                                                    <span className="text-[10px] text-white/40 bg-white/5 px-2 py-0.5 rounded-full">
-                                                        {formatDate(session.createdAt)}
-                                                    </span>
-                                                </div>
-                                                <div className="text-xs text-white/60 line-clamp-1 mt-1 break-all">
-                                                    Role: {session.jobRole || 'General'}
-                                                </div>
-                                            </button>
-                                            <button 
-                                                onClick={(e) => deleteSession(session._id, e)} 
-                                                title="Delete Session"
-                                                className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-red-400 hover:bg-red-400/20 transition-all ${isSelected ? 'opacity-100 block' : 'opacity-0 hidden group-hover:opacity-100 group-hover:block'}`}
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Main Content: Session Details */}
-                    <div className="w-2/3 bg-white/[0.02] border border-white/8 rounded-2xl flex flex-col overflow-hidden relative">
-                        {selectedSessionId && loadingDetails ? (
-                            <div className="absolute inset-0 bg-[#0a0a0a]/50 backdrop-blur-sm z-10 flex flex-col justify-center items-center">
-                                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                <p className="text-white/40 text-sm">Loading details...</p>
-                            </div>
-                        ) : null}
-
-                        {!selectedSessionId ? (
-                            <div className="flex-1 flex flex-col justify-center items-center text-center p-8 text-white/30">
-                                <div className="text-4xl mb-4 opacity-50">📂</div>
-                                <p>Select a session folder from the left<br />to view questions and feedback.</p>
-                            </div>
-                        ) : sessionDetails ? (
-                            <>
-                                <div className="p-6 border-b border-white/8 bg-white/5 sticky top-0 z-0 flex items-start justify-between">
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-white mb-2 capitalize">
-                                            {sessionDetails.session.mode} Session Overview
-                                        </h2>
-                                        <div className="flex flex-wrap gap-3 text-sm">
-                                            <span className="text-white/60 bg-white/5 px-3 py-1 rounded-lg">
-                                                Role: <strong className="text-white">{sessionDetails.session.jobRole || 'General'}</strong>
-                                            </span>
-                                            <span className="text-white/60 bg-white/5 px-3 py-1 rounded-lg">
-                                                Date: <strong className="text-white">{formatDate(sessionDetails.session.createdAt)}</strong>
-                                            </span>
-                                            {sessionDetails.session.yoe > 0 && (
-                                                <span className="text-white/60 bg-white/5 px-3 py-1 rounded-lg">
-                                                    Experience: <strong className="text-white">{sessionDetails.session.yoe} years</strong>
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={downloadSessionReport}
-                                        className="text-[11px] bg-white text-black font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-all flex items-center gap-2 shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.15)]"
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                        Export Report
-                                    </button>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                                    {sessionDetails.details.length === 0 ? (
-                                        <p className="text-white/40 text-center py-10">No questions answered in this session.</p>
-                                    ) : (
-                                        sessionDetails.details.map((item, index) => (
-                                            <div key={item.question?._id || index} className="bg-white/5 border border-white/10 rounded-2xl p-5 relative overflow-hidden">
-                                                {/* Question Area */}
-                                                <div className="mb-4">
-                                                    <div className="flex items-center gap-2 mb-2 text-white/40 text-xs font-semibold uppercase tracking-wider">
-                                                        <span>Question {index + 1}</span>
-                                                        {item.question?.difficulty && (
-                                                            <span className={`px-2 py-0.5 rounded-full border ${item.question.difficulty === 'Easy' ? 'text-green-400 border-green-400/20 bg-green-400/10' :
-                                                                    item.question.difficulty === 'Medium' ? 'text-yellow-400 border-yellow-400/20 bg-yellow-400/10' :
-                                                                        'text-red-400 border-red-400/20 bg-red-400/10'
-                                                                }`}>
-                                                                {item.question.difficulty}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-white text-base leading-relaxed font-medium">
-                                                        {item.question?.text || "Unknown Question"}
-                                                    </p>
-                                                </div>
-
-                                                {/* User's Answer */}
-                                                <div className="bg-[#0a0a0a]/50 p-4 rounded-xl border border-white/5 mb-4">
-                                                    <span className="text-xs text-white/30 uppercase font-semibold mb-2 block tracking-wider flex items-center gap-1.5"><span className="text-blue-400">🎤</span> Your Answer</span>
-                                                    <p className="text-white/80 text-sm leading-relaxed">
-                                                        {item.answer?.transcript || <span className="text-white/20 italic">No answer provided / Audio skip</span>}
-                                                    </p>
-                                                </div>
-
-                                                {/* Feedback / Evaluation */}
-                                                {item.evaluation ? (
-                                                    <div className="bg-blue-400/5 border border-blue-400/10 rounded-xl p-4">
-                                                        <span className="text-xs text-blue-400/60 uppercase font-semibold mb-3 block tracking-wider flex items-center gap-1.5"><span>💡</span> Evaluation Feedback</span>
-
-                                                        <p className="text-white/90 text-sm leading-relaxed mb-4">
-                                                            {item.evaluation.generalFeedback}
-                                                        </p>
-
-                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                            {[
-                                                                { label: 'Technical', val: item.evaluation.scoreTech, max: 10 },
-                                                                { label: 'Relevance', val: item.evaluation.scoreRelevance, max: 10 },
-                                                                { label: 'Depth', val: item.evaluation.scoreDepth, max: 10 },
-                                                                { label: 'Clarity', val: item.evaluation.scoreClarity, max: 10 }
-                                                            ].map(score => (
-                                                                <div key={score.label} className="bg-white/5 p-2 rounded-lg text-center">
-                                                                    <div className="text-[10px] text-white/40 mb-1">{score.label}</div>
-                                                                    <div className="font-bold text-white text-sm">
-                                                                        {score.val}<span className="text-white/30 text-[10px]">/{score.max}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-xs text-yellow-400/50 bg-yellow-400/5 p-3 rounded-lg border border-yellow-400/10">
-                                                        No evaluation available for this answer.
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </>
-                        ) : null}
-                    </div>
                 </div>
             )}
         </div>
