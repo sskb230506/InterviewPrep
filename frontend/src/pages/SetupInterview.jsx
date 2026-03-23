@@ -3,6 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+const C = {
+    navy: '#1A4872', navyLight: '#2e5f8a', navyMuted: '#2e6b9a',
+    navyFaint: 'rgba(26,72,114,0.55)', navyGhost: 'rgba(26,72,114,0.35)',
+    teal: '#52B788', tealDark: '#3d9a6e', 
+    tealLight: 'rgba(82,183,136,0.12)', tealBorder: 'rgba(82,183,136,0.35)',
+    steel: '#2E7DA6', steelLight: 'rgba(46,125,166,0.10)', steelBorder: 'rgba(46,125,166,0.30)',
+    bg: '#f0f9f4',
+    card: '#ffffff',
+    surface: '#ffffff', surfaceAlt: '#f8fdfb',
+    border: 'rgba(26,72,114,0.13)',
+    red: '#c0392b', redLight: 'rgba(192,57,43,0.09)',
+    green: '#27ae60', greenLight: 'rgba(39,174,96,0.10)',
+    yellow: '#d4860a', yellowLight: 'rgba(212,134,10,0.10)', 
+    orange: '#d4600a', orangeLight: 'rgba(212,96,10,0.10)',
+};
 
 const MODES = [
     {
@@ -187,46 +202,49 @@ export default function SetupInterview() {
     };
 
     return (
-        <div className="max-w-5xl mx-auto" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="max-w-5xl mx-auto pb-10" style={{ fontFamily: "'Inter', sans-serif" }}>
             {/* Header */}
             <div className="mb-10">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/10 rounded-full text-xs text-white/40 mb-5 bg-white/5">
-                    <span className="w-1.5 h-1.5 bg-white/60 rounded-full" />
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider mb-5" style={{ backgroundColor: C.steelLight, color: C.steel, border: `1px solid ${C.steelBorder}` }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.steel }} />
                     Choose Your Practice Mode
                 </div>
-                <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Start a Session</h1>
-                <p className="text-white/40 text-sm">Select a mode, configure your session, then begin.</p>
+                <h1 className="text-3xl font-extrabold tracking-tight mb-2" style={{ color: C.navy }}>Start a Session</h1>
+                <p className="text-sm font-medium" style={{ color: C.navyGhost }}>Select a mode, configure your session, then begin.</p>
             </div>
 
             <form onSubmit={handleStart}>
                 {/* ── Step 1: Mode Selection ──────────────────────────────────── */}
                 <div className="mb-8">
-                    <p className="text-xs font-medium text-white/40 uppercase tracking-widest mb-4">Step 1 — Choose mode</p>
+                    <p className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: C.navyFaint }}>
+                        <span className="w-5 border-t" style={{ borderColor: C.border }}></span>Step 1 — Choose mode
+                    </p>
                     <div className="grid md:grid-cols-3 gap-4">
                         {MODES.map((m) => (
                             <button
                                 key={m.id}
                                 type="button"
                                 onClick={() => { setSelectedMode(m.id); setError(''); }}
-                                className={`relative text-left p-5 rounded-2xl border transition-all duration-200 ${
-                                    selectedMode === m.id
-                                        ? 'bg-white/10 border-white/30'
-                                        : 'bg-white/[0.02] border-white/8 hover:bg-white/5 hover:border-white/15'
-                                }`}
+                                className={`relative text-left p-5 rounded-2xl transition-all duration-200`}
+                                style={{
+                                    backgroundColor: selectedMode === m.id ? C.surfaceAlt : C.card,
+                                    border: `1px solid ${selectedMode === m.id ? C.tealBorder : C.border}`,
+                                    boxShadow: selectedMode === m.id ? `0 0 0 1px ${C.teal}` : `0 4px 20px rgba(26,72,114,0.04)`
+                                }}
                             >
                                 {selectedMode === m.id && (
-                                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                                        <svg className="w-3 h-3 text-black" fill="currentColor" viewBox="0 0 20 20">
+                                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: C.teal, color: '#fff' }}>
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
                                     </div>
                                 )}
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${selectedMode === m.id ? 'bg-white/15 text-white' : 'bg-white/5 text-white/40'}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors`} style={{ backgroundColor: selectedMode === m.id ? C.tealLight : C.steelLight, color: selectedMode === m.id ? C.tealDark : C.steel }}>
                                     {m.icon}
                                 </div>
-                                <h3 className="font-semibold text-white text-base mb-1">{m.label}</h3>
-                                <p className="text-white/30 text-xs leading-relaxed mb-3">{m.desc}</p>
-                                <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${m.tagColor}`}>
+                                <h3 className="font-bold text-base mb-1" style={{ color: C.navy }}>{m.label}</h3>
+                                <p className="text-xs leading-relaxed mb-3" style={{ color: C.navyMuted }}>{m.desc}</p>
+                                <span className={`inline-flex items-center gap-1 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${m.tagColor.replace('text-white', 'text-black')}`}>
                                     {m.tag}
                                 </span>
                             </button>
@@ -236,22 +254,25 @@ export default function SetupInterview() {
 
                 {/* ── Step 2: YoE ── Always visible after mode selection ──────── */}
                 {selectedMode && (
-                    <div className="mb-8 p-6 bg-white/[0.02] border border-white/8 rounded-2xl">
-                        <p className="text-xs font-medium text-white/40 uppercase tracking-widest mb-4">Step 2 — Years of experience</p>
+                    <div className="mb-8 p-6 rounded-2xl" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: `0 4px 20px rgba(26,72,114,0.03)` }}>
+                        <p className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: C.navyFaint }}>
+                           <span className="w-5 border-t" style={{ borderColor: C.border }}></span>Step 2 — Years of experience
+                        </p>
                         <div className="flex flex-wrap gap-2">
                             {YOE_OPTIONS.map((opt) => (
                                 <button
                                     key={opt.value}
                                     type="button"
                                     onClick={() => setYoe(opt.value)}
-                                    className={`flex flex-col items-center px-4 py-2.5 rounded-xl border text-sm transition-all duration-150 ${
-                                        yoe === opt.value
-                                            ? 'bg-white text-black border-white font-semibold'
-                                            : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white'
-                                    }`}
+                                    className={`flex flex-col items-center px-4 py-2.5 rounded-xl transition-all duration-150`}
+                                    style={{
+                                        backgroundColor: yoe === opt.value ? C.navy : 'transparent',
+                                        color: yoe === opt.value ? '#fff' : C.navyMuted,
+                                        border: `1px solid ${yoe === opt.value ? C.navy : C.border}`
+                                    }}
                                 >
-                                    <span className="font-medium text-[13px]">{opt.label}</span>
-                                    <span className={`text-[10px] mt-0.5 ${yoe === opt.value ? 'text-black/50' : 'text-white/25'}`}>{opt.sub}</span>
+                                    <span className="font-bold text-[13px]">{opt.label}</span>
+                                    <span className={`text-[10px] mt-0.5 ${yoe === opt.value ? 'text-white/80' : 'text-current opacity-60'}`}>{opt.sub}</span>
                                 </button>
                             ))}
                         </div>
@@ -260,41 +281,45 @@ export default function SetupInterview() {
 
                 {/* ── Step 3: Mode-specific config ─────────────────────────── */}
                 {selectedMode && (
-                    <div className="mb-8 p-6 bg-white/[0.02] border border-white/8 rounded-2xl">
-                        <p className="text-xs font-medium text-white/40 uppercase tracking-widest mb-6">Step 3 — Configure session</p>
+                    <div className="mb-8 p-6 rounded-2xl" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: `0 4px 20px rgba(26,72,114,0.03)` }}>
+                        <p className="text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2" style={{ color: C.navyFaint }}>
+                           <span className="w-5 border-t" style={{ borderColor: C.border }}></span>Step 3 — Configure session
+                        </p>
 
                         {/* ── Interview mode ── */}
                         {selectedMode === 'interview' && (
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-5">
                                     <div>
-                                        <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">Target Job Role</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: C.navyMuted }}>Target Job Role</label>
                                         <input
                                             type="text" required value={jobRole}
                                             onChange={e => setJobRole(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-white/30 transition-all"
+                                            className="w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none transition-all"
+                                            style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}`, color: C.navy }}
                                             placeholder="e.g. Senior Frontend Engineer"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">Resume (PDF)</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: C.navyMuted }}>Resume (PDF)</label>
                                         <div
                                             onClick={() => document.getElementById('resume-file-input').click()}
                                             onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileChange(e.dataTransfer.files[0]); }}
                                             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                                             onDragLeave={() => setDragOver(false)}
-                                            className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${dragOver ? 'border-white/40 bg-white/10' : resumeFile ? 'border-white/30 bg-white/8' : 'border-white/10 hover:border-white/25 hover:bg-white/5'}`}
+                                            className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200`}
+                                            style={{ backgroundColor: dragOver ? C.tealLight : C.surfaceAlt, borderColor: dragOver ? C.teal : C.border }}
                                         >
                                             {resumeFile ? (
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <svg className="w-6 h-6 text-white/50" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                                                    <p className="text-sm text-white/70 font-medium truncate max-w-[200px]">{resumeFile.name}</p>
-                                                    <p className="text-xs text-white/30">Click to change</p>
+                                                    <svg className="w-6 h-6" style={{ color: C.teal }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                                    <p className="text-sm font-medium truncate max-w-[200px]" style={{ color: C.navy }}>{resumeFile.name}</p>
+                                                    <p className="text-xs" style={{ color: C.navyGhost }}>Click to change</p>
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <svg className="w-6 h-6 text-white/25" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                                                    <p className="text-sm text-white/35">Drop PDF or <span className="underline text-white/50">browse</span></p>
+                                                    <svg className="w-6 h-6" style={{ color: C.navyGhost }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                                                    <p className="text-sm" style={{ color: C.navyMuted }}>Drop PDF or <span className="underline font-semibold" style={{ color: C.navy }}>browse</span></p>
                                                 </div>
                                             )}
                                             <input id="resume-file-input" type="file" className="hidden" accept=".pdf" onChange={e => handleFileChange(e.target.files[0])} />
@@ -302,9 +327,10 @@ export default function SetupInterview() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2">Job Description</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: C.navyMuted }}>Job Description</label>
                                     <textarea required value={jdText} onChange={e => setJdText(e.target.value)}
-                                        className="w-full h-[220px] bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-white/30 transition-all resize-none"
+                                        className="w-full h-[220px] rounded-xl px-4 py-3.5 text-sm focus:outline-none transition-all resize-none"
+                                        style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}`, color: C.navy }}
                                         placeholder="Paste the job description here. The AI will analyze it to generate role-specific questions tailored to your experience level..."
                                     />
                                 </div>
@@ -315,35 +341,50 @@ export default function SetupInterview() {
                         {selectedMode === 'concepts' && (
                             <div className="space-y-6">
                                 <div>
-                                    <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-3">Topic</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Topic</label>
                                     <div className="flex flex-wrap gap-2">
                                         {CONCEPTS_TOPICS.map((t) => (
                                             <button key={t} type="button" onClick={() => setConceptTopic(t)}
-                                                className={`px-3 py-1.5 rounded-lg border text-sm transition-all duration-150 ${conceptTopic === t ? 'bg-white text-black border-white font-medium' : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white'}`}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150`}
+                                                style={{
+                                                    backgroundColor: conceptTopic === t ? C.navy : 'transparent',
+                                                    color: conceptTopic === t ? '#fff' : C.navyMuted,
+                                                    border: `1px solid ${conceptTopic === t ? C.navy : C.border}`
+                                                }}
                                             >{t}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="grid md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-3">Difficulty</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Difficulty</label>
                                         <div className="flex gap-3">
                                             {DIFFICULTIES.map((d) => (
                                                 <button key={d} type="button" onClick={() => setConceptDifficulty(d)}
-                                                    className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150 ${conceptDifficulty === d ? 'bg-white text-black border-white' : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white'}`}
+                                                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-150`}
+                                                    style={{
+                                                        backgroundColor: conceptDifficulty === d ? C.navy : 'transparent',
+                                                        color: conceptDifficulty === d ? '#fff' : C.navyMuted,
+                                                        border: `1px solid ${conceptDifficulty === d ? C.navy : C.border}`
+                                                    }}
                                                 >{d}</button>
                                             ))}
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-3">Answer Format</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Answer Format</label>
                                         <div className="flex gap-3">
                                             {[{ id: 'mcq', label: '📝 MCQ', sub: 'Multiple choice' }, { id: 'voice', label: '🎙️ Voice', sub: 'Spoken answer' }].map((opt) => (
                                                 <button key={opt.id} type="button" onClick={() => setConceptAnswerMode(opt.id)}
-                                                    className={`flex-1 py-2.5 px-3 rounded-xl border text-sm transition-all duration-150 ${conceptAnswerMode === opt.id ? 'bg-white text-black border-white font-medium' : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white'}`}
+                                                    className={`flex-1 flex flex-col items-center py-2.5 px-3 rounded-xl transition-all duration-150`}
+                                                    style={{
+                                                        backgroundColor: conceptAnswerMode === opt.id ? C.navy : 'transparent',
+                                                        color: conceptAnswerMode === opt.id ? '#fff' : C.navyMuted,
+                                                        border: `1px solid ${conceptAnswerMode === opt.id ? C.navy : C.border}`
+                                                    }}
                                                 >
-                                                    <div className="font-medium">{opt.label}</div>
-                                                    <div className={`text-xs mt-0.5 ${conceptAnswerMode === opt.id ? 'text-black/50' : 'text-white/25'}`}>{opt.sub}</div>
+                                                    <div className="font-bold text-sm">{opt.label}</div>
+                                                    <div className={`text-[10px] mt-0.5 ${conceptAnswerMode === opt.id ? 'text-white/80' : 'opacity-60'}`}>{opt.sub}</div>
                                                 </button>
                                             ))}
                                         </div>
@@ -357,15 +398,20 @@ export default function SetupInterview() {
                             <div className="space-y-6">
                                 {/* Company grid */}
                                 <div>
-                                    <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-3">Company (sets difficulty level)</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Company (sets difficulty level)</label>
                                     <div className="flex flex-wrap gap-2">
                                         {COMPANIES.map((c) => (
                                             <button key={c.name} type="button" onClick={() => setDsaCompany(c.name)}
-                                                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-150 ${dsaCompany === c.name ? 'bg-white text-black border-white font-medium' : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white'}`}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150`}
+                                                style={{
+                                                    backgroundColor: dsaCompany === c.name ? C.navy : 'transparent',
+                                                    color: dsaCompany === c.name ? '#fff' : C.navyMuted,
+                                                    border: `1px solid ${dsaCompany === c.name ? C.navy : C.border}`
+                                                }}
                                             >
                                                 <span>{c.logo}</span>
                                                 <span>{c.name}</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${dsaCompany === c.name ? 'text-black/60 bg-black/10 border-black/20' : TIER_STYLE[c.tier]}`}>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-bold ${dsaCompany === c.name ? 'text-white/80 bg-white/20 border-white/30' : TIER_STYLE[c.tier].replace('text-', 'text-black/70 ')}`}>
                                                     {c.tier}
                                                 </span>
                                             </button>
@@ -376,11 +422,16 @@ export default function SetupInterview() {
                                 <div className="grid md:grid-cols-2 gap-6">
                                     {/* Topic */}
                                     <div>
-                                        <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-3">Topic (optional)</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Topic (optional)</label>
                                         <div className="flex flex-wrap gap-2">
                                             {DSA_TOPICS.map((t) => (
                                                 <button key={t} type="button" onClick={() => setDsaTopic(dsaTopic === t ? '' : t)}
-                                                    className={`px-3 py-1.5 rounded-lg border text-xs transition-all duration-150 ${dsaTopic === t ? 'bg-white text-black border-white font-medium' : 'bg-white/5 border-white/10 text-white/40 hover:border-white/25 hover:text-white'}`}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150`}
+                                                    style={{
+                                                        backgroundColor: dsaTopic === t ? C.navy : 'transparent',
+                                                        color: dsaTopic === t ? '#fff' : C.navyMuted,
+                                                        border: `1px solid ${dsaTopic === t ? C.navy : C.border}`
+                                                    }}
                                                 >{t}</button>
                                             ))}
                                         </div>
@@ -388,15 +439,20 @@ export default function SetupInterview() {
 
                                     {/* Language */}
                                     <div>
-                                        <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-3">Language</label>
+                                        <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Language</label>
                                         <div className="flex flex-col gap-2">
                                             {LANGUAGES.map((lang) => (
                                                 <button key={lang} type="button" onClick={() => setDsaLanguage(lang)}
-                                                    className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all duration-150 ${dsaLanguage === lang ? 'bg-white text-black border-white font-semibold' : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white'}`}
+                                                    className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all duration-150`}
+                                                    style={{
+                                                        backgroundColor: dsaLanguage === lang ? C.navy : 'transparent',
+                                                        color: dsaLanguage === lang ? '#fff' : C.navyMuted,
+                                                        border: `1px solid ${dsaLanguage === lang ? C.navy : C.border}`
+                                                    }}
                                                 >
                                                     <span>{lang}</span>
                                                     {dsaLanguage === lang && (
-                                                        <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 20 20">
+                                                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                         </svg>
                                                     )}
@@ -412,9 +468,9 @@ export default function SetupInterview() {
 
                 {/* Error */}
                 {error && (
-                    <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
-                        <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                        <p className="text-red-400 text-sm">{error}</p>
+                    <div className="mb-6 p-4 rounded-xl flex items-start gap-3" style={{ backgroundColor: C.redLight, border: `1px solid rgba(192,57,43,0.2)` }}>
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: C.red }} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                        <p className="text-sm font-semibold" style={{ color: C.red }}>{error}</p>
                     </div>
                 )}
 
@@ -422,10 +478,17 @@ export default function SetupInterview() {
                 {selectedMode && (
                     <div className="flex justify-end">
                         <button type="submit" disabled={loading}
-                            className="flex items-center gap-2 bg-white text-black text-sm font-semibold px-8 py-3.5 rounded-xl hover:bg-white/90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                            className="flex items-center gap-2 text-sm font-bold px-8 py-3.5 rounded-xl transition-all duration-200"
+                            style={{ 
+                                background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`, 
+                                color: '#fff', 
+                                opacity: loading ? 0.6 : 1, 
+                                cursor: loading ? 'not-allowed' : 'pointer',
+                                boxShadow: '0 4px 15px rgba(82,183,136,0.3)' 
+                            }}
                         >
                             {loading ? (
-                                <><div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />Starting session...</>
+                                <><div className="w-4 h-4 border-2 border-t-white rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.3)' }} />Starting session...</>
                             ) : (
                                 <>
                                     {selectedMode === 'interview' && 'Begin Interview'}
