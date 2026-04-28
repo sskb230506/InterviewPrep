@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  db:
+    image: mongo:latest
+    container_name: interview_mongo_db
+    # Prisma requires MongoDB to be run as a replica set to enable transactions
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27017" ]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: test $$(echo "rs.initiate({_id:'rs0',members:[{_id:0,host:\"localhost:27017\"}]}).ok || rs.status().ok" | mongo -u admin -p password123 --quiet) -eq 1
+      interval: 10s
+      start_period: 30s
+
+volumes:
+  mongodata:

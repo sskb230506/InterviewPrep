@@ -6,5 +6,6 @@ import { getAnalytics } from '../controllers/analyticsController.js';
 const router = Router();
 
 router.get('/', requireAuth, asyncHandler(getAnalytics));
+router.get('/dashboard', requireAuth, asyncHandler(getAnalytics));
 
 export default router;
