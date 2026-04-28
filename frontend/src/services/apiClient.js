@@ -5,8 +5,12 @@ export function isMockMode() {
   return USE_MOCK;
 }
 
+export function getAuthToken() {
+  return localStorage.getItem('aiprep_token');
+}
+
 export async function apiRequest(path, options = {}) {
-  const token = localStorage.getItem('aiprep_token');
+  const token = getAuthToken();
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -32,4 +36,18 @@ export async function apiRequest(path, options = {}) {
   }
 
   return response.json();
+}
+
+export async function uploadBinary(uploadUrl, file, options = {}) {
+  const response = await fetch(uploadUrl, {
+    method: options.method || 'PUT',
+    headers: options.headers,
+    body: file,
+  });
+
+  if (!response.ok) {
+    throw new Error(options.errorMessage || 'Direct upload failed');
+  }
+
+  return response;
 }

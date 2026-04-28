@@ -1,0 +1,18 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: interview-worker-queue-scaler
+spec:
+  scaleTargetRef:
+    name: interview-worker
+  pollingInterval: 15
+  cooldownPeriod: 60
+  minReplicaCount: 2
+  maxReplicaCount: 12
+  triggers:
+    - type: redis
+      metadata:
+        addressFromEnv: REDIS_URL
+        listName: bull:interview-answer-evaluations:wait
+        listLength: "5"
+        enableTLS: "false"

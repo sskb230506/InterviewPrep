@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interview-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: interview-worker
+  template:
+    metadata:
+      labels:
+        app: interview-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/your-org/interview-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "src/worker.js"]
+          envFrom:
+            - configMapRef:
+                name: interview-backend-config
+            - secretRef:
+                name: interview-backend-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: interview-worker
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: interview-worker

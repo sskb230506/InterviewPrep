@@ -7,7 +7,7 @@ export function buildScoreTrend(sessions) {
 
   return recent.map((session) => {
     const scores = session.result || {};
-    const answers = session.answers || [];
+    const answers = (session.answers || []).filter((answer) => answer.status === 'completed');
     const fillerWordsAvg = answers.length
       ? Math.round(answers.reduce((sum, item) => sum + (item.fillerWords || 0), 0) / answers.length)
       : 0;
@@ -22,7 +22,9 @@ export function buildScoreTrend(sessions) {
 }
 
 export function buildWeakTopicHeatmap(sessions) {
-  const answers = sessions.flatMap((session) => session.answers || []);
+  const answers = sessions.flatMap((session) =>
+    (session.answers || []).filter((answer) => answer.status === 'completed'),
+  );
 
   const buckets = {
     'System Design': [],

@@ -13,16 +13,23 @@ function InterviewResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadResults = async () => {
-    setLoading(true);
-    setError('');
+  const loadResults = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
+
     try {
       const response = await fetchInterviewResults(sessionId);
       setData(response);
     } catch (err) {
-      setError(err.message || 'Unable to fetch results');
+      if (!silent) {
+        setError(err.message || 'Unable to fetch results');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -30,8 +37,20 @@ function InterviewResultsPage() {
     loadResults();
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!data?.status || data.status === 'completed') {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => {
+      loadResults({ silent: true });
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [data?.status, data?.pendingEvaluations, sessionId]);
+
   const downloadFeedback = () => {
-    if (!data) return;
+    if (!data || data.status !== 'completed') return;
     const text = [
       `Interview Session: ${sessionId}`,
       `Overall: ${data.overallScore}`,
@@ -70,6 +89,8 @@ function InterviewResultsPage() {
     return <ErrorState message="No interview results found." />;
   }
 
+  const isProcessing = data.status && data.status !== 'completed';
+
   return (
     <div className="stack-lg">
       <PageHeader
@@ -77,8 +98,13 @@ function InterviewResultsPage() {
         subtitle="Structured AI evaluation for your latest session"
         actions={
           <div className="inline-row">
-            <button type="button" className="btn btn-outline" onClick={downloadFeedback}>
-              Download Feedback
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={downloadFeedback}
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Waiting for Final Report' : 'Download Feedback'}
             </button>
             <Link className="btn btn-primary" to={`/interview/review/${sessionId}`}>
               Detailed Review
@@ -86,6 +112,16 @@ function InterviewResultsPage() {
           </div>
         }
       />
+
+      {isProcessing ? (
+        <section className="panel stack-sm">
+          <h3>Background evaluation in progress</h3>
+          <p>
+            {data.pendingEvaluations || 0} answer{data.pendingEvaluations === 1 ? '' : 's'} still
+            being scored. This page refreshes automatically.
+          </p>
+        </section>
+      ) : null}
 
       <section className="score-grid">
         <ScoreBadge label="Overall" value={data.overallScore} />
@@ -101,11 +137,15 @@ function InterviewResultsPage() {
 
       <section className="panel">
         <h3>Improvement Suggestions</h3>
-        <ul>
-          {data.improvements.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
+        {data.improvements.length ? (
+          <ul>
+            {data.improvements.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>Recommendations will appear here once all answer evaluations are complete.</p>
+        )}
       </section>
     </div>
   );

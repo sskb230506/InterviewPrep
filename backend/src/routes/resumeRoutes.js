@@ -2,10 +2,17 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { resumeUpload } from '../middleware/upload.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { updateResumeSkills, uploadResume } from '../controllers/resumeController.js';
+import {
+  completeResumeUpload,
+  createResumeUploadTarget,
+  updateResumeSkills,
+  uploadResume,
+} from '../controllers/resumeController.js';
 
 const router = Router();
 
+router.post('/upload-url', requireAuth, asyncHandler(createResumeUploadTarget));
+router.post('/upload-complete', requireAuth, asyncHandler(completeResumeUpload));
 router.post('/upload', requireAuth, resumeUpload.single('resume'), asyncHandler(uploadResume));
 router.put('/skills', requireAuth, asyncHandler(updateResumeSkills));
 

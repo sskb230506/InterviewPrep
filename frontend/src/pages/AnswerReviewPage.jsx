@@ -14,22 +14,41 @@ function AnswerReviewPage() {
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const loadReview = async () => {
-    setLoading(true);
-    setError('');
+  const loadReview = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
+
     try {
       const response = await fetchInterviewReview(sessionId);
       setData(response);
     } catch (err) {
-      setError(err.message || 'Failed to load review');
+      if (!silent) {
+        setError(err.message || 'Failed to load review');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     loadReview();
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!data?.status || data.status === 'completed') {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => {
+      loadReview({ silent: true });
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [data?.status, data?.pendingEvaluations, sessionId]);
 
   if (loading) {
     return <LoadingSpinner label="Loading detailed review..." />;
@@ -43,12 +62,24 @@ function AnswerReviewPage() {
     return <ErrorState message="No answer review data available." />;
   }
 
+  const isProcessing = data.status && data.status !== 'completed';
+
   return (
     <div className="stack-lg">
       <PageHeader
         title="Detailed Answer Review"
         subtitle="Question-wise transcript, AI feedback, and upgraded model answers"
       />
+
+      {isProcessing ? (
+        <section className="panel stack-sm">
+          <h3>Some answers are still being evaluated</h3>
+          <p>
+            {data.pendingEvaluations || 0} answer{data.pendingEvaluations === 1 ? '' : 's'} are
+            still queued or processing. This page refreshes automatically.
+          </p>
+        </section>
+      ) : null}
 
       {data.perQuestion.map((item, index) => {
         const open = expandedId === item.id;

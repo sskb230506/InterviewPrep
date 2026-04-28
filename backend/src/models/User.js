@@ -5,6 +5,9 @@ const resumeSchema = new mongoose.Schema(
     resumeId: { type: String },
     fileName: { type: String },
     filePath: { type: String },
+    fileUrl: { type: String },
+    storageKey: { type: String },
+    storageProvider: { type: String },
     status: {
       type: String,
       enum: ['idle', 'uploading', 'parsing', 'parsed', 'failed'],

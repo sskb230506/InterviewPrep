@@ -1,6 +1,6 @@
 import { mockQuestionBank, mockResults } from '../data/mockData';
 import { sleep } from '../utils/helpers';
-import { apiRequest, isMockMode } from './apiClient';
+import { apiRequest, getAuthToken, isMockMode, uploadBinary } from './apiClient';
 
 export async function createInterviewSession(payload) {
   if (isMockMode()) {
@@ -36,11 +36,36 @@ export async function submitAudioAnswer(sessionId, questionId, audioBlob) {
     };
   }
 
+  const uploadTarget = await apiRequest(`/interview/session/${sessionId}/answer-upload-url`, {
+    method: 'POST',
+    body: JSON.stringify({
+      questionId,
+      fileName: `${questionId}.webm`,
+      mimeType: audioBlob.type || 'audio/webm',
+      size: audioBlob.size,
+    }),
+  });
+
+  if (uploadTarget?.enabled) {
+    await uploadBinary(uploadTarget.uploadUrl, audioBlob, {
+      method: uploadTarget.method,
+      headers: uploadTarget.headers,
+      errorMessage: 'Audio upload to object storage failed',
+    });
+
+    return apiRequest(`/interview/session/${sessionId}/answer-complete`, {
+      method: 'POST',
+      body: JSON.stringify({
+        uploadToken: uploadTarget.uploadToken,
+      }),
+    });
+  }
+
   const formData = new FormData();
   formData.append('audio', audioBlob, `${questionId}.webm`);
   formData.append('questionId', questionId);
 
-  const token = localStorage.getItem('aiprep_token');
+  const token = getAuthToken();
   const response = await fetch(
     `${import.meta.env.VITE_API_BASE_URL}/interview/session/${sessionId}/answer`,
     {

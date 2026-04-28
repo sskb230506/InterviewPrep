@@ -87,7 +87,9 @@ export function evaluateAnswer({ questionId, questionText, type, audioSize = 0 }
 }
 
 export function summarizeSession(answers) {
-  if (!answers.length) {
+  const completedAnswers = answers.filter((answer) => answer.status === 'completed');
+
+  if (!completedAnswers.length) {
     return {
       overallScore: 0,
       confidenceScore: 0,
@@ -100,13 +102,13 @@ export function summarizeSession(answers) {
   }
 
   const technicalScore = Math.round(
-    answers.reduce((sum, item) => sum + item.scores.technical, 0) / answers.length,
+    completedAnswers.reduce((sum, item) => sum + item.scores.technical, 0) / completedAnswers.length,
   );
   const clarityScore = Math.round(
-    answers.reduce((sum, item) => sum + item.scores.clarity, 0) / answers.length,
+    completedAnswers.reduce((sum, item) => sum + item.scores.clarity, 0) / completedAnswers.length,
   );
   const confidenceScore = Math.round(
-    answers.reduce((sum, item) => sum + item.scores.confidence, 0) / answers.length,
+    completedAnswers.reduce((sum, item) => sum + item.scores.confidence, 0) / completedAnswers.length,
   );
 
   const overallScore = Math.round((technicalScore + clarityScore + confidenceScore) / 3);

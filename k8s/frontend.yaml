@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interview-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: interview-frontend
+  template:
+    metadata:
+      labels:
+        app: interview-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/your-org/interview-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: interview-frontend
+spec:
+  selector:
+    app: interview-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
