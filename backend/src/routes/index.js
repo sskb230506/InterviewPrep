@@ -5,6 +5,8 @@ import resumeRoutes from './resumeRoutes.js';
 import interviewRoutes from './interviewRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import settingsRoutes from './settingsRoutes.js';
+import dsaRoutes from './dsaRoutes.js';
+import conceptsRoutes from './conceptsRoutes.js';
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use('/resume', resumeRoutes);
 router.use('/interview', interviewRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/dsa', dsaRoutes);
+router.use('/concepts', conceptsRoutes);
 
 export default router;
