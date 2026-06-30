@@ -124,13 +124,21 @@ async function queueStoredAnswer({ session, question, storedAudio }) {
 }
 
 export async function createSession(req, res) {
-  const { role, difficulty, interviewType } = req.body;
+  const { role, difficulty, interviewType, resumeText = '', jdText = '' } = req.body;
 
   if (!role || !difficulty || !interviewType) {
     throw new AppError('role, difficulty, and interviewType are required', 400);
   }
 
-  const questions = generateInterviewQuestions({ role, difficulty, interviewType, count: 5 });
+  // generateInterviewQuestions is now async (LLM call)
+  const questions = await generateInterviewQuestions({
+    role,
+    difficulty,
+    interviewType,
+    count: 5,
+    resumeText,
+    jdText,
+  });
 
   const session = await InterviewSession.create({
     user: req.user._id,

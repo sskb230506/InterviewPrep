@@ -156,11 +156,11 @@ export async function processInterviewEvaluationJob({ sessionId, questionId }) {
   await session.save();
 
   try {
-    const evaluation = evaluateAnswer({
+    const evaluation = await evaluateAnswer({
       questionId,
       questionText: question.text,
       type: question.type,
-      audioSize: answer.audio?.size || 0,
+      audio: answer.audio,
     });
 
     answer.transcript = evaluation.transcript;

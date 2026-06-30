@@ -16,7 +16,7 @@ function readNumber(name, fallback) {
   return parsed;
 }
 
-const required = ['MONGO_URI', 'JWT_SECRET'];
+const required = ['MONGO_URI', 'JWT_SECRET', 'LLM_API_KEY', 'WHISPER_API_KEY'];
 
 for (const key of required) {
   if (!process.env[key]) {
@@ -54,6 +54,18 @@ export const env = {
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   publicServerUrl: process.env.PUBLIC_SERVER_URL || `http://localhost:${port}`,
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
+
+  // ── LLM (Groq) ──────────────────────────────────────────────────────────
+  llmApiKey:          process.env.LLM_API_KEY,
+  llmBaseUrl:         process.env.LLM_BASE_URL          || 'https://api.groq.com/openai/v1',
+  llmModelExtraction: process.env.LLM_MODEL_EXTRACTION  || 'llama-3.1-8b-instant',
+  llmModelReasoning:  process.env.LLM_MODEL_REASONING   || 'llama-3.3-70b-versatile',
+  llmModelJudge:      process.env.LLM_MODEL_JUDGE        || 'llama-3.1-8b-instant',
+
+  // ── Whisper ─────────────────────────────────────────────────────────────
+  whisperApiKey:  process.env.WHISPER_API_KEY,
+  whisperBaseUrl: process.env.WHISPER_BASE_URL || 'https://api.groq.com/openai/v1/audio/transcriptions',
+  whisperModel:   process.env.WHISPER_MODEL    || 'whisper-large-v3',
   mongoMaxPoolSize: readNumber('MONGO_MAX_POOL_SIZE', 20),
   mongoMinPoolSize: readNumber('MONGO_MIN_POOL_SIZE', 5),
   mongoMaxIdleTimeMs: readNumber('MONGO_MAX_IDLE_TIME_MS', 30000),

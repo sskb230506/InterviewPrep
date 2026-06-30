@@ -2,9 +2,13 @@ import mongoose from 'mongoose';
 
 const questionSchema = new mongoose.Schema(
   {
-    id: { type: String, required: true },
-    text: { type: String, required: true },
-    type: { type: String, enum: ['Technical', 'Behavioral', 'Mixed'], required: true },
+    id:           { type: String, required: true },
+    text:         { type: String, required: true },
+    type:         { type: String, enum: ['Technical', 'Behavioral', 'Mixed'], required: true },
+    format:       { type: String, enum: ['mcq', 'open'], default: 'open' },
+    options:      { type: [String], default: [] },   // 4 items for MCQ, empty for open
+    correctIndex: { type: Number, default: -1 },     // 0–3 for MCQ, -1 for open
+    hint:         { type: String, default: '' },     // what a strong answer covers
   },
   { _id: false },
 );
