@@ -1,3 +1,5 @@
+import { getAuthToken } from './apiClient';
+
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:5000/ws';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -36,7 +38,8 @@ export function connectInterviewSocket(sessionId, handlers) {
     };
   }
 
-  const ws = new WebSocket(`${WS_BASE_URL}/interview/${sessionId}`);
+  const token = getAuthToken();
+  const ws = new WebSocket(`${WS_BASE_URL}/interview/${sessionId}?token=${token}`);
 
   ws.addEventListener('open', () => handlers.onOpen?.());
   ws.addEventListener('message', (event) => {

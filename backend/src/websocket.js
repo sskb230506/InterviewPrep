@@ -1,4 +1,7 @@
 import { WebSocketServer } from 'ws';
+import jwt from 'jsonwebtoken';
+import { env } from './config/env.js';
+import { InterviewSession } from './models/InterviewSession.js';
 
 const sessionClients = new Map();
 
@@ -40,18 +43,50 @@ export function broadcastInterviewEvent(sessionId, event) {
 export function registerWebSocketServer(httpServer) {
   const wsServer = new WebSocketServer({ noServer: true });
 
-  httpServer.on('upgrade', (request, socket, head) => {
-    const requestUrl = new URL(request.url, 'http://localhost');
-    const path = requestUrl.pathname || '';
+  httpServer.on('upgrade', async (request, socket, head) => {
+    try {
+      const requestUrl = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+      const path = requestUrl.pathname || '';
 
-    if (!path.startsWith('/ws/interview/')) {
+      if (!path.startsWith('/ws/interview/')) {
+        socket.destroy();
+        return;
+      }
+
+      const token = requestUrl.searchParams.get('token');
+      if (!token) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      let decoded;
+      try {
+        decoded = jwt.verify(token, env.jwtSecret);
+      } catch {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      const userId = decoded.sub || decoded.userId;
+      const sessionId = path.split('/').pop();
+
+      // Check if sessionId is valid and exists in DB for this user
+      const session = await InterviewSession.findOne({ _id: sessionId, user: userId });
+      if (!session) {
+        socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      wsServer.handleUpgrade(request, socket, head, (client) => {
+        wsServer.emit('connection', client, request);
+      });
+    } catch (error) {
+      socket.write('HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n');
       socket.destroy();
-      return;
     }
-
-    wsServer.handleUpgrade(request, socket, head, (client) => {
-      wsServer.emit('connection', client, request);
-    });
   });
 
   wsServer.on('connection', (client, request) => {
