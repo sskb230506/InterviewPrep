@@ -19,8 +19,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGO_URI: mongodb://mongo:27017/ai_interview_prep
-      JWT_SECRET: replace_with_strong_secret
+      MONGO_URI: ${MONGO_URI}
+      JWT_SECRET: ${JWT_SECRET}
       CLIENT_ORIGIN: http://localhost:8080
       PUBLIC_SERVER_URL: http://localhost:5000
       REDIS_URL: redis://redis:6379
@@ -43,8 +43,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGO_URI: mongodb://mongo:27017/ai_interview_prep
-      JWT_SECRET: replace_with_strong_secret
+      MONGO_URI: ${MONGO_URI}
+      JWT_SECRET: ${JWT_SECRET}
       REDIS_URL: redis://redis:6379
       EVALUATION_MODE: redis
       STORAGE_DRIVER: local
