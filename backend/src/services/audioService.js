@@ -1,44 +1,55 @@
-import axios from 'axios';
-import FormData from 'form-data';
+// backend/src/services/audioService.js
+//
+// Rewritten to use native fetch + FormData (Node 18+) — no axios or form-data package needed.
+
 import fs from 'fs';
 
 /**
- * Transcribes audio using an open-source Whisper model via API.
+ * Transcribes audio using Groq Whisper.
  * @param {string} audioFilePath - Path to the saved audio file
  * @returns {Promise<string>} Transcription text
  */
 export async function transcribeAudio(audioFilePath) {
-    // Can use Hugging Face Inference API or standard Groq Whisper-large-v3
-    const apiKey = process.env.WHISPER_API_KEY || process.env.LLM_API_KEY;
-    const baseURL = process.env.WHISPER_BASE_URL || 'https://api.groq.com/openai/v1/audio/transcriptions';
+  const apiKey = process.env.WHISPER_API_KEY || process.env.LLM_API_KEY;
+  const baseURL =
+    process.env.WHISPER_BASE_URL || 'https://api.groq.com/openai/v1/audio/transcriptions';
 
-    if (!apiKey) {
-        throw new Error('WHISPER_API_KEY or LLM_API_KEY environment variable is missing.');
-    }
+  if (!apiKey) {
+    throw new Error('WHISPER_API_KEY or LLM_API_KEY environment variable is missing.');
+  }
 
-    const formData = new FormData();
-    // Groq Whisper requires a filename with a valid extension to detect the codec
-    formData.append('file', fs.createReadStream(audioFilePath), {
-        filename: 'answer.webm',
-        contentType: 'audio/webm',
+  let buffer;
+  try {
+    buffer = fs.readFileSync(audioFilePath);
+  } catch (readErr) {
+    throw new Error(`Failed to read audio file: ${readErr.message}`);
+  }
+
+  const formData = new FormData();
+  const blob = new Blob([buffer], { type: 'audio/webm' });
+  formData.append('file', blob, 'answer.webm');
+  formData.append('model', process.env.WHISPER_MODEL || 'whisper-large-v3');
+  formData.append('response_format', 'json');
+
+  try {
+    const res = await fetch(baseURL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
     });
-    formData.append('model', process.env.WHISPER_MODEL || 'whisper-large-v3');
-    formData.append('response_format', 'json');
 
-    try {
-        const response = await axios.post(baseURL, formData, {
-            headers: {
-                ...formData.getHeaders(),
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            timeout: 30000,
-        });
-        return response.data.text;
-    } catch (error) {
-        const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-        console.error('Audio transcription failed:', detail);
-        throw new Error(`Failed to transcribe audio: ${detail}`);
-    } finally {
-        fs.unlink(audioFilePath, () => { });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Whisper API error ${res.status}: ${text}`);
     }
+
+    const data = await res.json();
+    return data.text ?? '';
+  } catch (error) {
+    console.error('Audio transcription failed:', error.message);
+    throw new Error(`Failed to transcribe audio: ${error.message}`);
+  } finally {
+    // Clean up the temp file
+    fs.unlink(audioFilePath, () => {});
+  }
 }
