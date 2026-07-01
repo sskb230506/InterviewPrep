@@ -1,31 +1,60 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../services/api';
 import ReactMarkdown from 'react-markdown';
+
+const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050/api';
 
 const C = {
     navy: '#1A4872', navyLight: '#2e5f8a', navyMuted: '#2e6b9a',
     navyFaint: 'rgba(26,72,114,0.55)', navyGhost: 'rgba(26,72,114,0.35)',
-    teal: '#52B788', tealDark: '#3d9a6e', 
+    teal: '#52B788', tealDark: '#3d9a6e',
     tealLight: 'rgba(82,183,136,0.12)', tealBorder: 'rgba(82,183,136,0.35)',
     steel: '#2E7DA6', steelLight: 'rgba(46,125,166,0.10)', steelBorder: 'rgba(46,125,166,0.30)',
-    bg: '#f0f9f4',
-    card: '#ffffff',
+    bg: '#f0f9f4', card: '#ffffff',
     surface: '#ffffff', surfaceAlt: '#f8fdfb',
     border: 'rgba(26,72,114,0.13)',
     red: '#c0392b', redLight: 'rgba(192,57,43,0.09)',
     green: '#27ae60', greenLight: 'rgba(39,174,96,0.10)',
-    yellow: '#d4860a', yellowLight: 'rgba(212,134,10,0.10)', 
+    yellow: '#d4860a', yellowLight: 'rgba(212,134,10,0.10)',
     orange: '#d4600a', orangeLight: 'rgba(212,96,10,0.10)',
 };
+
+function authHeader() {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiFetch(path, opts = {}) {
+    const res = await fetch(`${BASE}${path}`, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', ...authHeader(), ...(opts.headers || {}) },
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API ${res.status}: ${text}`);
+    }
+    return res.json();
+}
+
+// Poll until the answer status is 'completed' or 'failed' (max ~30s)
+async function pollForResult(sessionId, questionId, maxAttempts = 15, delayMs = 2000) {
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, delayMs));
+        const data = await apiFetch(`/interview/session/${sessionId}/review`);
+        const q = data.perQuestion?.find(p => p.id === questionId);
+        if (q && (q.status === 'completed' || q.status === 'failed')) return q;
+    }
+    return null;
+}
 
 export default function InterviewRoom() {
     const { sessionId } = useParams();
     const navigate = useNavigate();
 
+    const [questionIndex, setQuestionIndex] = useState(0);
     const [question, setQuestion] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [statusText, setStatusText] = useState('Generating your first question...');
+    const [statusText, setStatusText] = useState('Loading your first question...');
 
     const [isRecording, setIsRecording] = useState(false);
     const [audioBlob, setAudioBlob] = useState(null);
@@ -34,51 +63,53 @@ export default function InterviewRoom() {
     const [recordingSeconds, setRecordingSeconds] = useState(0);
     const timerRef = useRef(null);
 
-    const [evaluation, setEvaluation] = useState(null);
+    // Per-question feedback shown immediately after submit
+    const [feedback, setFeedback] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        fetchNextQuestion();
-        // eslint-disable-next-line
-    }, []);
-
-    const fetchNextQuestion = async () => {
+    const fetchQuestion = useCallback(async (index) => {
         setLoading(true);
-        setEvaluation(null);
+        setFeedback(null);
         setAudioBlob(null);
+        setRecordingSeconds(0);
+        setStatusText('AI is generating your next question...');
         try {
-            setStatusText('AI is formulating a question based on your profile...');
-            const res = await api.post(`/interview/${sessionId}/question`, { difficulty: 'Intermediate' });
-            setQuestion(res.data);
+            const data = await apiFetch(`/interview/session/${sessionId}/question?index=${index}`);
+            if (!data) {
+                // No more questions — go to results
+                await apiFetch(`/interview/session/${sessionId}/end`, { method: 'POST' });
+                navigate(`/interview/session/${sessionId}/results`);
+                return;
+            }
+            setQuestion(data);
         } catch (err) {
             console.error(err);
-            setStatusText('Failed to fetch question.');
+            setStatusText('Failed to load question. Please refresh.');
         } finally {
             setLoading(false);
         }
-    };
+    }, [sessionId, navigate]);
+
+    useEffect(() => { fetchQuestion(0); }, [fetchQuestion]);
 
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
             audioChunksRef.current = [];
-
-            mediaRecorderRef.current.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunksRef.current.push(event.data);
+            mediaRecorderRef.current.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
             };
-
             mediaRecorderRef.current.onstop = () => {
                 const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 setAudioBlob(blob);
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(t => t.stop());
             };
-
             mediaRecorderRef.current.start();
             setIsRecording(true);
             setRecordingSeconds(0);
             timerRef.current = setInterval(() => setRecordingSeconds(s => s + 1), 1000);
         } catch (err) {
-            console.error('Mic access denied:', err);
             alert('Please allow microphone access to answer the question.');
         }
     };
@@ -92,256 +123,262 @@ export default function InterviewRoom() {
     };
 
     const submitAnswer = async () => {
-        if (!audioBlob) return;
-        setLoading(true);
-        setStatusText('Transcribing and evaluating your answer...');
+        if (!audioBlob || !question) return;
+        setSubmitting(true);
+        setStatusText('Uploading and transcribing your answer...');
+
+        const questionId = question.id;
 
         try {
             const formData = new FormData();
-            formData.append('audio', new File([audioBlob], 'answer.webm', { type: 'audio/webm' }));
+            formData.append('audio', new File([audioBlob], `${questionId}.webm`, { type: 'audio/webm' }));
+            formData.append('questionId', questionId);
 
-            const res = await api.post(`/interview/${sessionId}/answer/${question.questionId || question.id}`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            // Submit the audio
+            const submitRes = await fetch(`${BASE}/interview/session/${sessionId}/answer`, {
+                method: 'POST',
+                headers: authHeader(),
+                body: formData,
             });
+            if (!submitRes.ok) {
+                const t = await submitRes.text();
+                throw new Error(`Submit failed: ${t}`);
+            }
 
-            setEvaluation(res.data);
+            setStatusText('Evaluating your answer with AI...');
+
+            // Since EVALUATION_MODE=inline, the result should be ready quickly.
+            // Poll the review endpoint until this question is done.
+            const result = await pollForResult(sessionId, questionId);
+
+            if (!result) {
+                setFeedback({
+                    status: 'timeout',
+                    question: question.text,
+                    transcript: 'Evaluation is still processing.',
+                    feedback: ['Your answer was received. Results will appear in the session review.'],
+                    betterAnswer: '',
+                    scores: null,
+                });
+            } else {
+                setFeedback(result);
+            }
         } catch (err) {
             console.error(err);
-            alert('Failed to submit answer. Please try again.');
+            alert(`Failed to submit answer: ${err.message}`);
         } finally {
-            setLoading(false);
+            setSubmitting(false);
         }
     };
 
-    const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+    const handleNextQuestion = () => {
+        const nextIndex = questionIndex + 1;
+        setQuestionIndex(nextIndex);
+        fetchQuestion(nextIndex);
+    };
 
-    if (loading) {
+    const fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+
+    // ── Loading spinner ───────────────────────────────────────────────────────
+    if (loading || submitting) {
         return (
-            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
-                <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: C.tealBorder, borderTopColor: C.teal }} />
-                <p className="text-sm text-center max-w-xs animate-pulse font-medium" style={{ color: C.navyMuted }}>{statusText}</p>
+            <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', border: `3px solid ${C.tealBorder}`, borderTopColor: C.teal, animation: 'spin 0.8s linear infinite' }} />
+                <p style={{ color: C.navyMuted, fontWeight: 600, fontSize: 14, textAlign: 'center', maxWidth: 320 }}>{statusText}</p>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
         );
     }
 
-    if (evaluation) {
-        const { evaluation: ev, transcript, audit } = evaluation;
-        const avgScore = ((ev.scoreTech + ev.scoreRelevance + ev.scoreDepth + ev.scoreStructure) / 4).toFixed(1);
-        const scoreGrade = avgScore >= 8 ? 'Excellent' : avgScore >= 6 ? 'Good' : avgScore >= 4 ? 'Fair' : 'Needs Work';
+    // ── Per-question feedback panel ───────────────────────────────────────────
+    if (feedback) {
+        const { scores, transcript, feedback: bullets, betterAnswer, noAudioDetected, status } = feedback;
+        const hasScores = scores && (scores.technical > 0 || scores.clarity > 0 || scores.confidence > 0);
+        const avgScore = hasScores
+            ? ((scores.technical + scores.clarity + scores.confidence) / 3 / 10).toFixed(1)
+            : null;
+        const grade = avgScore >= 8 ? 'Excellent' : avgScore >= 6 ? 'Good' : avgScore >= 4 ? 'Fair' : avgScore !== null ? 'Needs Work' : null;
 
         return (
-            <div className="max-w-3xl mx-auto" style={{ fontFamily: "'Inter', sans-serif" }}>
-                {/* Header */}
-                <div className="mb-8">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider mb-4" style={{ backgroundColor: C.tealLight, color: C.tealDark, border: `1px solid ${C.tealBorder}` }}>
-                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        Answer Evaluated
+            <div style={{ maxWidth: 720, margin: '0 auto', fontFamily: "'Inter', sans-serif" }}>
+                {/* Header badge */}
+                <div style={{ marginBottom: 24 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 999, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, backgroundColor: noAudioDetected ? C.yellowLight : C.tealLight, color: noAudioDetected ? C.yellow : C.tealDark, border: `1px solid ${noAudioDetected ? 'rgba(212,134,10,0.25)' : C.tealBorder}` }}>
+                        {noAudioDetected ? '⚠ No Audio Detected' : '✓ Answer Evaluated'}
                     </div>
-                    <div className="flex items-start justify-between">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                         <div>
-                            <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: C.navy }}>Evaluation Results</h2>
-                            <p className="text-sm mt-1 font-medium" style={{ color: C.navyGhost }}>Here's how your answer was assessed by the AI.</p>
+                            <h2 style={{ fontSize: 22, fontWeight: 800, color: C.navy, margin: 0 }}>
+                                {noAudioDetected ? 'No Response Recorded' : 'Evaluation Results'}
+                            </h2>
+                            <p style={{ fontSize: 13, color: C.navyGhost, marginTop: 4, fontWeight: 500 }}>
+                                {noAudioDetected ? 'Your recording had no detectable speech.' : 'AI analysis of your spoken answer.'}
+                            </p>
                         </div>
-                        <div className="text-right">
-                            <div className="text-3xl font-bold" style={{ color: C.navy }}>{avgScore}<span className="text-lg" style={{ color: C.navyGhost }}>/10</span></div>
-                            <div className="text-xs font-bold uppercase mt-0.5" style={{ color: C.tealDark }}>{scoreGrade}</div>
-                        </div>
+                        {avgScore !== null && (
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: 32, fontWeight: 800, color: C.navy }}>{avgScore}<span style={{ fontSize: 16, color: C.navyGhost }}>/10</span></div>
+                                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: C.tealDark }}>{grade}</div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Judge warning */}
-                {!audit?.isValid && (
-                    <div className="mb-5 p-4 rounded-xl flex items-start gap-3" style={{ backgroundColor: C.yellowLight, border: `1px solid rgba(212,134,10,0.2)` }}>
-                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: C.yellow }} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <div>
-                            <p className="text-sm font-bold" style={{ color: C.yellow }}>Evaluation Quality Warning</p>
-                            <p className="text-xs mt-0.5 font-medium" style={{ color: 'rgba(212,134,10,0.7)' }}>{audit?.auditReasoning || 'The AI evaluation may not be optimal for this response.'}</p>
+                {/* Score cards — only when real audio was evaluated */}
+                {hasScores && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                        {[
+                            { label: 'Technical', val: scores.technical },
+                            { label: 'Clarity', val: scores.clarity },
+                            { label: 'Confidence', val: scores.confidence },
+                        ].map(({ label, val }) => (
+                            <div key={label} style={{ borderRadius: 14, padding: 16, textAlign: 'center', backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
+                                <div style={{ fontSize: 26, fontWeight: 800, color: C.navy }}>{val}<span style={{ fontSize: 13, color: C.navyGhost }}>/100</span></div>
+                                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: C.navyGhost, marginTop: 4 }}>{label}</div>
+                                <div style={{ height: 4, borderRadius: 99, backgroundColor: C.steelLight, marginTop: 10, overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', borderRadius: 99, backgroundColor: val >= 70 ? C.teal : val >= 45 ? C.yellow : C.red, width: `${val}%`, transition: 'width 0.7s ease' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Transcript */}
+                {transcript && !transcript.startsWith('[No speech') && (
+                    <div style={{ borderRadius: 14, padding: 18, marginBottom: 14, backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: C.navyMuted, marginBottom: 10 }}>Your Transcribed Answer</p>
+                        <p style={{ fontSize: 14, lineHeight: 1.7, fontStyle: 'italic', color: C.navyMuted }}>"{transcript}"</p>
+                    </div>
+                )}
+
+                {/* Feedback bullets */}
+                {bullets?.length > 0 && (
+                    <div style={{ borderRadius: 14, padding: 18, marginBottom: 14, backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: C.tealDark, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>💬</span> AI Coaching Feedback
+                        </p>
+                        <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {bullets.map((b, i) => (
+                                <li key={i} style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.6, fontWeight: 500 }}>{b}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Better answer */}
+                {betterAnswer && (
+                    <div style={{ borderRadius: 14, padding: 18, marginBottom: 24, backgroundColor: '#f0fdf4', border: `1px solid rgba(39,174,96,0.2)` }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, color: C.green, marginBottom: 10 }}>
+                            ✨ Model Answer / What to Say Next Time
+                        </p>
+                        <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.7, fontWeight: 500 }}>
+                            <ReactMarkdown>{betterAnswer}</ReactMarkdown>
                         </div>
                     </div>
                 )}
 
-                {/* Score cards */}
-                <div className="grid grid-cols-4 gap-3 mb-6">
-                    {[
-                        { label: 'Technical', score: ev.scoreTech },
-                        { label: 'Relevance', score: ev.scoreRelevance },
-                        { label: 'Depth', score: ev.scoreDepth },
-                        { label: 'Structure', score: ev.scoreStructure },
-                    ].map(({ label, score }) => (
-                        <div key={label} className="rounded-xl p-4 text-center" style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
-                            <div className="text-2xl font-bold mb-1" style={{ color: C.navy }}>{score}</div>
-                            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: C.navyGhost }}>{label}</div>
-                            <div className="w-full rounded-full h-1 mt-3 overflow-hidden" style={{ backgroundColor: C.steelLight }}>
-                                <div className="h-1 rounded-full transition-all duration-700" style={{ backgroundColor: C.teal, width: `${(score / 10) * 100}%` }} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Transcript */}
-                <div className="rounded-xl p-5 mb-5" style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: C.navyMuted }}>Your Transcribed Answer</p>
-                    <p className="text-sm leading-relaxed italic font-medium" style={{ color: C.navyMuted }}>"{transcript}"</p>
-                </div>
-
-                {/* AI Feedback */}
-                <div className="rounded-xl p-5 mb-8" style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: C.tealDark }}>
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                        AI Feedback
-                    </p>
-                    <div className="prose prose-sm max-w-none text-black/80 font-medium">
-                        <ReactMarkdown>{ev.generalFeedback}</ReactMarkdown>
-                    </div>
-                </div>
-
                 {/* Actions */}
-                <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <button
                         onClick={() => navigate('/dashboard')}
-                        className="flex items-center gap-2 px-5 py-3 text-sm font-bold rounded-xl transition-all duration-150"
-                        style={{ color: C.navyMuted, border: `1px solid ${C.border}`, backgroundColor: C.surfaceAlt }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.surfaceAlt, color: C.navyMuted, cursor: 'pointer' }}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" />
-                        </svg>
-                        View Dashboard
+                        ← Dashboard
                     </button>
                     <button
-                        onClick={fetchNextQuestion}
-                        className="flex items-center gap-2 text-sm font-bold px-6 py-3 rounded-xl transition-all duration-150"
-                        style={{ background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`, color: '#fff', boxShadow: `0 4px 15px rgba(82,183,136,0.3)` }}
+                        onClick={handleNextQuestion}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 15px rgba(82,183,136,0.3)' }}
                     >
-                        Next Question
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                        </svg>
+                        Next Question →
                     </button>
                 </div>
             </div>
         );
     }
 
+    // ── Main question + recording panel ──────────────────────────────────────
     return (
-        <div className="max-w-3xl mx-auto mt-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ maxWidth: 720, margin: '16px auto', fontFamily: "'Inter', sans-serif" }}>
             {/* Question card */}
-            <div className="rounded-2xl p-8 md:p-12 mb-6 relative overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: `0 8px 30px rgba(26,72,114,0.04)` }}>
-                {/* Subtle grid */}
-                <div
-                    className="absolute inset-0 pointer-events-none opacity-40"
-                    style={{
-                        backgroundImage: `linear-gradient(${C.steelLight} 1px, transparent 1px),
-                                          linear-gradient(90deg, ${C.steelLight} 1px, transparent 1px)`,
-                        backgroundSize: '30px 30px',
-                    }}
-                />
-
-                <div className="relative z-10 flex flex-col items-center text-center">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest mb-8" style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}`, color: C.navyMuted }}>
-                        <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-                        </svg>
-                        Interview Question
+            <div style={{ borderRadius: 20, padding: '40px 48px', marginBottom: 20, backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: '0 8px 30px rgba(26,72,114,0.04)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', inset: 0, opacity: 0.4, backgroundImage: `linear-gradient(${C.steelLight} 1px, transparent 1px), linear-gradient(90deg, ${C.steelLight} 1px, transparent 1px)`, backgroundSize: '30px 30px', pointerEvents: 'none' }} />
+                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 28, backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}`, color: C.navyMuted }}>
+                        Question {questionIndex + 1}
                     </div>
-
-                    <blockquote className="text-xl md:text-2xl font-bold leading-relaxed max-w-2xl mb-6" style={{ color: C.navy }}>
-                        "{question?.question}"
+                    <blockquote style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5, color: C.navy, maxWidth: 580, margin: '0 0 16px' }}>
+                        "{question?.text}"
                     </blockquote>
-
-                    <p className="text-sm font-medium" style={{ color: C.navyGhost }}>
-                        Take a moment to gather your thoughts, then record your response.
+                    <p style={{ fontSize: 13, color: C.navyGhost, fontWeight: 500 }}>
+                        Record your spoken answer below. Speak clearly and completely.
                     </p>
                 </div>
             </div>
 
             {/* Recording panel */}
-            <div className="rounded-2xl p-6" style={{ backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
-                <div className="flex flex-col items-center gap-5">
+            <div style={{ borderRadius: 20, padding: 24, backgroundColor: C.surfaceAlt, border: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+
                     {isRecording ? (
-                        // Recording state
-                        <div className="flex flex-col items-center gap-4 w-full">
-                            <div className="relative">
-                                <div className="w-20 h-20 rounded-full flex items-center justify-center animate-pulse" style={{ backgroundColor: C.redLight, border: `2px solid rgba(192,57,43,0.3)` }}>
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: C.red }}>
-                                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z"/>
-                                        </svg>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%' }}>
+                            <div style={{ position: 'relative' }}>
+                                <div style={{ width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: C.redLight, border: `2px solid rgba(192,57,43,0.3)`, animation: 'pulse 1.5s ease-in-out infinite' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: C.red }}>
+                                        <svg width={20} height={20} fill="white" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z" /></svg>
                                     </div>
                                 </div>
-                                {/* Ripple rings */}
-                                <div className="absolute inset-0 rounded-full border animate-ping" style={{ borderColor: 'rgba(192,57,43,0.2)' }} />
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: C.red }} />
-                                <span className="text-sm font-mono font-bold" style={{ color: C.navy }}>{formatTime(recordingSeconds)}</span>
-                                <span className="text-xs font-bold uppercase" style={{ color: C.red }}>Recording...</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: C.red, animation: 'pulse 1s ease-in-out infinite' }} />
+                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: C.navy, fontSize: 16 }}>{fmt(recordingSeconds)}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: C.red }}>Recording...</span>
                             </div>
-                            <button
-                                onClick={stopRecording}
-                                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-150"
-                                style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, color: C.navyMuted }}
-                            >
-                                <svg className="w-4 h-4 text-current" fill="currentColor" viewBox="0 0 24 24">
-                                    <rect x="4" y="4" width="16" height="16" rx="2" />
-                                </svg>
+                            <button onClick={stopRecording} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.card, color: C.navyMuted, cursor: 'pointer' }}>
+                                <svg width={14} height={14} fill="currentColor" viewBox="0 0 24 24"><rect x={4} y={4} width={16} height={16} rx={2} /></svg>
                                 Stop Recording
                             </button>
                         </div>
+
                     ) : audioBlob ? (
-                        // Audio ready state
-                        <div className="w-full flex flex-col gap-3">
-                            <div className="flex items-center gap-3 p-4 rounded-xl" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: C.tealLight, color: C.tealDark }}>
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                        <path d="M7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z"/>
-                                    </svg>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: C.tealLight, color: C.tealDark, flexShrink: 0 }}>
+                                    <svg width={14} height={14} fill="currentColor" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z" /></svg>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold" style={{ color: C.navy }}>Answer recorded</p>
-                                    <p className="text-xs font-medium mt-0.5" style={{ color: C.navyGhost }}>{formatTime(recordingSeconds)} duration</p>
+                                <div style={{ flex: 1 }}>
+                                    <p style={{ fontSize: 13, fontWeight: 700, color: C.navy, margin: 0 }}>Answer recorded</p>
+                                    <p style={{ fontSize: 11, color: C.navyGhost, margin: 0, marginTop: 2 }}>{fmt(recordingSeconds)} duration</p>
                                 </div>
-                                <button
-                                    onClick={() => { setAudioBlob(null); setRecordingSeconds(0); }}
-                                    className="text-xs font-bold uppercase transition-colors"
-                                    style={{ color: C.navyGhost }}
-                                >
+                                <button onClick={() => { setAudioBlob(null); setRecordingSeconds(0); }} style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: C.navyGhost, background: 'none', border: 'none', cursor: 'pointer' }}>
                                     Retake
                                 </button>
                             </div>
-                            <audio src={URL.createObjectURL(audioBlob)} controls className="w-full h-10 opacity-70" />
+                            <audio src={URL.createObjectURL(audioBlob)} controls style={{ width: '100%', height: 40, opacity: 0.75 }} />
                             <button
                                 onClick={submitAnswer}
-                                className="w-full flex items-center justify-center gap-2 text-sm font-bold py-3.5 rounded-xl transition-all duration-150"
-                                style={{ background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`, color: '#fff', boxShadow: '0 4px 15px rgba(82,183,136,0.3)' }}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', fontSize: 14, fontWeight: 700, borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 15px rgba(82,183,136,0.3)' }}
                             >
-                                Submit Answer
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                                </svg>
+                                Submit & Get Feedback
+                                <svg width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
                             </button>
                         </div>
+
                     ) : (
-                        // Idle state
-                        <div className="flex flex-col items-center gap-3">
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                             <button
                                 onClick={startRecording}
-                                className="w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105 group"
-                                style={{ backgroundColor: C.card, border: `2px solid ${C.tealBorder}`, color: C.teal }}
+                                style={{ width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: C.card, border: `2px solid ${C.tealBorder}`, color: C.teal, cursor: 'pointer', transition: 'transform 0.15s' }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.07)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                             >
-                                <svg className="w-8 h-8 transition-colors" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z"/>
-                                </svg>
+                                <svg width={32} height={32} fill="currentColor" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM7 10a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V20h3v2H8v-2h3v-3.08A7 7 0 0 1 5 10h2z" /></svg>
                             </button>
-                            <p className="text-sm font-medium uppercase tracking-widest" style={{ color: C.navyGhost }}>Click to start recording</p>
+                            <p style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 2, color: C.navyGhost }}>Click to start recording</p>
                         </div>
                     )}
                 </div>
             </div>
+            <style>{`@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.5} }`}</style>
         </div>
     );
 }

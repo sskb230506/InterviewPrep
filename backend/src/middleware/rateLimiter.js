@@ -47,7 +47,7 @@ export function createRateLimiter({ windowMs, max, message }) {
 
 export const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15,
+  max: 50, // generous for local dev; tighten in production
   message: { error: 'Too many login or registration attempts. Please try again after 15 minutes.' },
 });
 

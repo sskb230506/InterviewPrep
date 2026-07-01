@@ -1,19 +1,39 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMe, login, signup } from '../services/authService';
 import { STORAGE_KEYS } from '../utils/constants';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  // One-time cleanup: remove legacy 'token'/'user' keys left by the old api.js.
+  // If these exist alongside 'aiprep_token', they would confuse getAuthToken().
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEYS.token));
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEYS.user);
     return raw ? JSON.parse(raw) : null;
   });
+  // isBootstrapping = true only on the initial cold page load when we need to re-validate
+  // a stored token. It is NOT set to true during loginUser/signupUser calls.
   const [isBootstrapping, setIsBootstrapping] = useState(Boolean(token));
+
+  // Track whether the current token change came from a fresh login/signup
+  // so we can skip the redundant bootstrap call (we already have the user).
+  const skipBootstrapRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
+      setIsBootstrapping(false);
+      return;
+    }
+
+    // Fresh login/signup — user object is already set, skip the extra /me call
+    if (skipBootstrapRef.current) {
+      skipBootstrapRef.current = false;
       setIsBootstrapping(false);
       return;
     }
@@ -37,10 +57,13 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const handleAuthSuccess = (payload) => {
-    setToken(payload.token);
+    // Mark this as a fresh login so the token-change effect skips re-bootstrapping.
+    // We already have the user from the login/signup response — no need to call /me again.
+    skipBootstrapRef.current = true;
     setUser(payload.user);
     localStorage.setItem(STORAGE_KEYS.token, payload.token);
     localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(payload.user));
+    setToken(payload.token); // triggers the useEffect, which will see skipBootstrapRef=true
   };
 
   const loginUser = async (payload) => {

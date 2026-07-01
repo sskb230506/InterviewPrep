@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import EmptyState from '../components/common/EmptyState';
 import ErrorState from '../components/common/ErrorState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -7,11 +7,14 @@ import PageHeader from '../components/common/PageHeader';
 import StatCard from '../components/common/StatCard';
 import ScoreTrendChart from '../components/charts/ScoreTrendChart';
 import { fetchDashboard } from '../services/dashboardService';
+import { useAuth } from '../context/AuthContext';
 
 function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -20,7 +23,15 @@ function DashboardPage() {
       const response = await fetchDashboard();
       setData(response);
     } catch (err) {
-      setError(err.message || 'Unable to fetch dashboard');
+      const msg = err.message || 'Unable to fetch dashboard';
+      // Token expired or invalid — call logout() to clear React auth state
+      // (just removing from localStorage is not enough; isAuthenticated stays true)
+      if (msg.toLowerCase().includes('token') || msg.toLowerCase().includes('unauthorized') || msg.includes('401')) {
+        logout();
+        navigate('/login', { replace: true });
+        return;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }

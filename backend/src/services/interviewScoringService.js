@@ -15,37 +15,39 @@ import { env } from '../config/env.js';
 function buildEvaluatorPrompt({ questionText, type, transcript }) {
   const typeGuide =
     type === 'Behavioral'
-      ? 'Use STAR (Situation, Task, Action, Result) as the evaluation framework.'
-      : 'Evaluate technical accuracy, depth of knowledge, and real-world applicability.';
+      ? 'Use STAR (Situation, Task, Action, Result) as the evaluation framework. Check whether the candidate described a real Situation, their specific Task/role, the concrete Actions they took, and a measurable Result.'
+      : 'Evaluate technical accuracy, depth of knowledge, correct terminology, and real-world applicability. Check for misconceptions, missing fundamentals, or vague hand-waving.';
 
-  return `You are an expert interviewer evaluating a candidate's spoken answer.
+  return `You are an expert technical interviewer giving highly personalized, honest feedback to a candidate.
 
 QUESTION (${type}):
 "${questionText}"
 
-CANDIDATE'S TRANSCRIPT:
+CANDIDATE'S ACTUAL ANSWER (verbatim transcript):
 "${transcript}"
 
-EVALUATION FRAMEWORK: ${typeGuide}
+YOUR JOB:
+1. Read what the candidate ACTUALLY said — do NOT give generic advice.
+2. ${typeGuide}
+3. Quote or paraphrase specific things they said to make feedback concrete.
+4. Identify what was good, what was missing, and what was wrong.
 
-Score the answer on three axes (0–100):
-- technical: accuracy and depth of the content
-- clarity: structure, coherence, and ease of following
-- confidence: assertiveness, appropriate pacing, minimal hedging
+Score 0–100 on three axes:
+- technical: accuracy and depth of the actual content they gave
+- clarity: structure, coherence, logical flow of THEIR answer
+- confidence: assertiveness, appropriate pacing, minimal hedging in THEIR delivery
 
-Also provide:
-- feedback: 2–4 bullet points of specific, actionable coaching (what was good, what to improve)
-- betterAnswer: a model answer in 3–5 sentences the candidate can learn from
-- keywords: 3–5 keywords that a strong answer should have covered
-- fillerWords: estimated count of filler words (um, uh, like, you know) in the transcript
-
-Return ONLY valid JSON in this exact shape:
+Return ONLY valid JSON:
 {
   "scores": { "technical": 72, "clarity": 68, "confidence": 75 },
-  "feedback": ["Good point about X", "Missed Y — add a concrete example"],
-  "betterAnswer": "A strong answer would ...",
-  "keywords": ["scalability", "tradeoffs", "metrics"],
-  "fillerWords": 4
+  "feedback": [
+    "You correctly mentioned X — that shows solid understanding of Y.",
+    "You said '...' but missed explaining Z, which is crucial here.",
+    "Your answer lacked a concrete example — add one to strengthen it."
+  ],
+  "betterAnswer": "A strong answer to this question would start by... then explain... and close with...",
+  "keywords": ["term1", "term2", "term3"],
+  "fillerWords": 3
 }`;
 }
 
@@ -90,9 +92,24 @@ Return ONLY valid JSON:
  *   audio.fileName
  * @returns {Promise<object>} evaluation result
  */
+// Minimum meaningful transcript length (words) to attempt evaluation
+const MIN_TRANSCRIPT_WORDS = 5;
+
+/**
+ * Returns true when the transcript indicates no real speech was captured.
+ */
+function isEmptyTranscript(transcript) {
+  if (!transcript || !transcript.trim()) return true;
+  if (transcript.startsWith('[Transcription unavailable')) return true;
+  // Groq Whisper sometimes returns transcriptions like "Thank you." or just filler for silence
+  const wordCount = transcript.trim().split(/\s+/).filter(Boolean).length;
+  return wordCount < MIN_TRANSCRIPT_WORDS;
+}
+
 export async function evaluateAnswer({ questionId, questionText, type, audio }) {
   // ── 1. Transcribe ──────────────────────────────────────────────────────────
   let transcript = '';
+  let transcriptionFailed = false;
   try {
     const audioSource = audio?.buffer ?? audio?.path ?? null;
     const fileName = audio?.fileName ?? 'audio.webm';
@@ -105,6 +122,25 @@ export async function evaluateAnswer({ questionId, questionText, type, audio }) 
   } catch (err) {
     console.error(`[scoring] Whisper failed for ${questionId}:`, err.message);
     transcript = '[Transcription unavailable — audio could not be processed]';
+    transcriptionFailed = true;
+  }
+
+  // ── Guard: no real audio detected ─────────────────────────────────────────
+  if (transcriptionFailed || isEmptyTranscript(transcript)) {
+    console.warn(`[scoring] Empty/silent audio for ${questionId} — skipping LLM evaluation.`);
+    return {
+      transcript: transcript || '[No speech detected in the recording]',
+      feedback: [
+        'No spoken answer was detected in your recording.',
+        'Please record a response with your microphone clearly active and speak your answer aloud.',
+        'Ensure your microphone is not muted and you are speaking close enough to be captured.',
+      ],
+      betterAnswer: `For this question — "${questionText}" — please record a spoken response. Describe your approach clearly using the ${type === 'Behavioral' ? 'STAR framework (Situation, Task, Action, Result)' : 'concept definition, how it works, and a real-world example'}.`,
+      keywords: [],
+      scores: { technical: 0, clarity: 0, confidence: 0 },
+      fillerWords: 0,
+      noAudioDetected: true,
+    };
   }
 
   // ── 2. Evaluate ────────────────────────────────────────────────────────────
@@ -120,7 +156,7 @@ export async function evaluateAnswer({ questionId, questionText, type, audio }) 
     evaluation = buildFallbackEvaluation(questionText, type);
   }
 
-  const safeScores = normalizeScores(evaluation?.scores);
+  const safeScores = normalizeScores(evaluation?.scores) ?? { technical: 0, clarity: 0, confidence: 0 };
   const safeFeedback = Array.isArray(evaluation?.feedback) ? evaluation.feedback : [];
   const safeBetterAnswer = evaluation?.betterAnswer ?? '';
   const safeKeywords = Array.isArray(evaluation?.keywords) ? evaluation.keywords : [];
@@ -166,11 +202,11 @@ function clamp(value, min = 0, max = 100) {
 }
 
 function normalizeScores(raw) {
-  if (!raw || typeof raw !== 'object') return { technical: 50, clarity: 50, confidence: 50 };
+  if (!raw || typeof raw !== 'object') return null;
   return {
-    technical: clamp(Number(raw.technical) || 50),
-    clarity: clamp(Number(raw.clarity) || 50),
-    confidence: clamp(Number(raw.confidence) || 50),
+    technical: clamp(Number(raw.technical) || 0),
+    clarity: clamp(Number(raw.clarity) || 0),
+    confidence: clamp(Number(raw.confidence) || 0),
   };
 }
 
