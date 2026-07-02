@@ -183,3 +183,30 @@ export async function storeUploadedFile({ file, category, prefix }) {
 
   return metadata;
 }
+
+export async function getUploadedFileBuffer(storedFile) {
+  if (storedFile.provider === 'local') {
+    if (!storedFile.path) {
+      throw new Error('Local file path is missing');
+    }
+    return await fs.readFile(storedFile.path);
+  }
+
+  if (storedFile.provider === 's3') {
+    const s3 = getS3Client();
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const response = await s3.send(
+      new GetObjectCommand({
+        Bucket: env.s3Bucket,
+        Key: storedFile.key,
+      }),
+    );
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  throw new Error(`Unsupported storage provider: ${storedFile.provider}`);
+}

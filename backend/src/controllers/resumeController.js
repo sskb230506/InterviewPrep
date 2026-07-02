@@ -2,11 +2,15 @@ import { User } from '../models/User.js';
 import { ALLOWED_RESUME_MIME_TYPES } from '../middleware/upload.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/errors.js';
-import { extractSkillsFromResumeName } from '../services/resumeService.js';
+import {
+  extractSkillsFromResume,
+  extractSkillsFromResumeName,
+} from '../services/resumeService.js';
 import {
   canUseDirectUploads,
   confirmDirectUpload,
   createDirectUploadTarget,
+  getUploadedFileBuffer,
   storeUploadedFile,
 } from '../services/storageService.js';
 import { createUploadToken, verifyUploadToken } from '../services/uploadTokenService.js';
@@ -37,7 +41,24 @@ async function persistResumeUpload({ userId, fileName, storedResume }) {
   }
 
   const resumeId = `resume_${Date.now()}`;
-  const skills = extractSkillsFromResumeName(fileName, user.defaultRole);
+  let skills = [];
+
+  try {
+    const buffer = await getUploadedFileBuffer(storedResume);
+    if (buffer) {
+      skills = await extractSkillsFromResume(
+        buffer,
+        storedResume.mimeType,
+        fileName,
+        user.defaultRole,
+      );
+    } else {
+      skills = extractSkillsFromResumeName(fileName, user.defaultRole);
+    }
+  } catch (err) {
+    console.error('Failed to get file buffer for parsing skills, falling back to name:', err);
+    skills = extractSkillsFromResumeName(fileName, user.defaultRole);
+  }
 
   user.resume = {
     resumeId,
